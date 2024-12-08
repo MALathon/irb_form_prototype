@@ -3,42 +3,39 @@ import {
   Box,
   Container,
   Button,
-  ThemeProvider,
-  CssBaseline,
-  Drawer,
   IconButton,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
-  Chip,
+  Typography,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  Typography,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
+  Drawer,
+  Chip,
+  Stack,
 } from '@mui/material';
 import {
   HelpOutline as HelpIcon,
-  NavigateNext as NextIcon,
+  NavigateNext as NavigateNextIcon,
   NavigateBefore as BackIcon,
-  Delete as DeleteIcon,
   Settings as SettingsIcon,
   Edit as EditIcon,
+  Delete as DeleteIcon,
+  CheckCircle as CheckCircleIcon,
+  AccessTime as AccessTimeIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
-import { theme } from '../theme/theme';
+import { useTheme } from '@mui/material/styles';
 import type { 
   FormData, 
-  Section, 
   DateRange, 
-  ValidationError,
   FormConfig,
+  WizardState,
   Question,
-  WizardState
+  Section,
 } from '../types/index';
 import { 
   FormSection,
@@ -50,19 +47,7 @@ import { formConfig, generateFormConfig } from '../config/formConfig';
 import ReviewPage from './ReviewPage';
 import LandingPage from './LandingPage';
 import AIWizard from './AIWizard';
-
-// Add type for wizard sections
-interface WizardSection {
-  id: string;
-  title: string;
-  description: string;
-  questions: never[];
-  isWizardStep: boolean;
-}
-
-interface WizardSections {
-  [key: string]: WizardSection;
-}
+import { moduleQuestions } from '../config/moduleQuestions';
 
 // Add RootLayout component at the top of the file
 const RootLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -81,6 +66,7 @@ const RootLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const DynamicForm: React.FC = () => {
+  const theme = useTheme();
   const [wizardComplete, setWizardComplete] = useState(false);
   const [wizardState, setWizardState] = useState<WizardState>({ 
     phase: undefined,
@@ -123,7 +109,7 @@ const DynamicForm: React.FC = () => {
     if (!section) return [];
     
     return section.questions
-      .filter((q: Question) => q.required)
+      .filter((q: Question) => q.required === true)
       .filter((q: Question) => {
         if (q.type === 'date-range') {
           const dateRange = formData.date_range as DateRange | undefined;
@@ -175,7 +161,7 @@ const DynamicForm: React.FC = () => {
   const checkSectionCompletion = (sectionId: string) => {
     const section = currentFormConfig.sections[sectionId];
     const skippedFields = section.questions
-      .filter(q => q.required)
+      .filter(q => q.required === true)
       .filter(q => {
         if (q.type === 'date-range') {
           const dateRange = formData.date_range as DateRange | undefined;
@@ -191,8 +177,19 @@ const DynamicForm: React.FC = () => {
   // Add new state for tracking navigation
   const [navigationHistory, setNavigationHistory] = useState<string[]>(['initial_information']);
   
+  // Add state for navigation warning dialog
+  const [navigationWarningOpen, setNavigationWarningOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<string | null>(null);
+
   // Improve section change handling
-  const handleSectionChange = (sectionId: string) => {
+  const handleSectionChange = async (sectionId: string) => {
+    // Check if current section is incomplete
+    if (checkSectionCompletion(activeSection)) {
+      setNavigationWarningOpen(true);
+      setPendingNavigation(sectionId);
+      return;
+    }
+
     // Don't allow navigation to disabled sections
     if (disabledSections.includes(sectionId)) {
       return;
@@ -219,15 +216,35 @@ const DynamicForm: React.FC = () => {
   };
 
   // Improve next navigation
-  const handleNext = () => {
-    const currentIndex = Object.keys(currentFormConfig.sections).indexOf(activeSection);
-    const nextSection = Object.keys(currentFormConfig.sections)[currentIndex + 1];
+  const handleNext = async () => {
+    if (checkSectionCompletion(activeSection)) {
+      setNavigationWarningOpen(true);
+      return;
+    }
 
-    if (nextSection) {
-      handleSectionChange(nextSection);
+    const isValid = await validateSection(activeSection);
+    
+    if (!isValid || !canProceed(activeSection)) {
+      return;
+    }
+
+    if (activeSection === 'getting_started') {
+      // After Getting Started, go to first module from wizard
+      if (wizardState.selectedModules?.core.length) {
+        const firstModuleId = wizardState.selectedModules.core[0].toLowerCase().replace(/\s+/g, '_');
+        setActiveSection(firstModuleId);
+        setNavigationHistory(prev => [...prev, firstModuleId]);
+      }
     } else {
-      // If no next section, move to review
-      setIsReviewMode(true);
+      // Normal next section logic
+      const currentIndex = Object.keys(currentFormConfig.sections).indexOf(activeSection);
+      const nextSection = Object.keys(currentFormConfig.sections)[currentIndex + 1];
+
+      if (nextSection) {
+        handleSectionChange(nextSection);
+      } else {
+        setIsReviewMode(true);
+      }
     }
   };
 
@@ -243,16 +260,49 @@ const DynamicForm: React.FC = () => {
     setWizardComplete(true);
     setShowWizard(false);
     
-    // Generate new form config based on wizard selections
-    const newConfig = generateFormConfig(wizardState);
+    // Create the initial form configuration with Getting Started and wizard-selected modules
+    const newConfig: FormConfig = {
+      sections: {
+        getting_started: {
+          id: 'getting_started',
+          title: 'Getting Started',
+          description: 'Initial study information',
+          questions: moduleQuestions.getting_started || [], // Use the questions from moduleQuestions
+          isWizardStep: false
+        }
+      }
+    };
+
+    // Add wizard-selected modules to the configuration
+    if (wizardState.selectedModules) {
+      wizardState.selectedModules.core.forEach((moduleTitle) => {
+        const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
+        newConfig.sections[sectionId] = {
+          id: sectionId,
+          title: moduleTitle,
+          description: `Complete ${moduleTitle} information`,
+          questions: moduleQuestions[sectionId] || [], // Use module-specific questions
+          isWizardStep: false
+        };
+      });
+
+      wizardState.selectedModules.additional.forEach((moduleTitle) => {
+        const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
+        newConfig.sections[sectionId] = {
+          id: sectionId,
+          title: moduleTitle,
+          description: `Complete ${moduleTitle} information`,
+          questions: moduleQuestions[sectionId] || [], // Use module-specific questions
+          isWizardStep: false
+        };
+      });
+    }
+
     setCurrentFormConfig(newConfig);
     
-    // Add wizard steps to completed sections
-    setCompletedSections(['study_phase', 'data_collection']);
-    
-    // Start with initial section
-    setActiveSection('initial_information');
-    setNavigationHistory(['initial_information']);
+    // Navigate to Getting Started
+    setActiveSection('getting_started');
+    setNavigationHistory(['ai_wizard', 'getting_started']);
   };
 
   // Add section completion tracking
@@ -262,7 +312,7 @@ const DynamicForm: React.FC = () => {
       if (!section) return;
 
       const isComplete = section.questions.every(q => {
-        if (!q.required) return true;
+        if (q.required !== true) return true;
         const value = formData[q.id];
         return value !== undefined && value !== null && value !== '';
       });
@@ -330,27 +380,55 @@ const DynamicForm: React.FC = () => {
     };
   };
 
-  const handleSubmit = () => {
-    console.log('Form submitted:', formData);
+  // Add state for submit dialog
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+
+  // Update handleSubmit
+  const handleSubmit = async () => {
+    // Validate all sections before allowing submission
+    const sections = Object.keys(currentFormConfig.sections);
+    const validations = await Promise.all(
+      sections.map(sectionId => validateSection(sectionId))
+    );
+
+    if (validations.some(isValid => !isValid)) {
+      // Show error message about invalid sections
+      return;
+    }
+
+    setSubmitDialogOpen(true);
   };
 
+  // Add confirmation dialog
+  <Dialog open={submitDialogOpen} onClose={() => setSubmitDialogOpen(false)}>
+    <DialogTitle>Submit Application?</DialogTitle>
+    <DialogContent>
+      <Typography>
+        Are you sure you want to submit your IRB application? Please ensure all sections are complete.
+      </Typography>
+    </DialogContent>
+    <DialogActions>
+      <Button onClick={() => setSubmitDialogOpen(false)}>Review Again</Button>
+      <Button 
+        onClick={() => {
+          console.log('Form submitted:', formData);
+          // Add submission logic here
+          setSubmitDialogOpen(false);
+        }}
+        color="primary"
+        variant="contained"
+      >
+        Submit Application
+      </Button>
+    </DialogActions>
+  </Dialog>
+
+  // Add state for dialog
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+
+  // Update handleClearForm to use dialog
   const handleClearForm = () => {
-    localStorage.removeItem('formProgress');
-    setFormData({});
-    setCompletedSections([]);
-    setSkippedSections([]);
-    setVisitedSections(['initial_information']);
-    setActiveSection('initial_information');
-    setIsReviewMode(false);
-    setShowLandingPage(true);
-    setShowWizard(false);
-    setWizardState({ 
-      phase: undefined,
-      dataCollection: undefined,
-      estimatedTime: 0 
-    });
-    setCurrentFormConfig(formConfig);
-    clearErrors(activeSection);
+    setClearDialogOpen(true);
   };
 
   const handleSettingsClick = (event: React.MouseEvent<HTMLElement>) => {
@@ -377,153 +455,78 @@ const DynamicForm: React.FC = () => {
     setDataTypeSelectOpen(true);
   };
 
-  const handlePhaseChange = (newPhase: 'discovery' | 'pilot' | 'validation') => {
-    const newWizardState = {
-      ...wizardState,
-      phase: newPhase,
-    };
-    
-    // Update form configuration while preserving data
-    const newConfig = generateFormConfig(newWizardState);
-    const wizardSections: WizardSections = {
-      study_phase: {
-        id: 'study_phase',
-        title: 'Study Phase',
-        description: 'Select your AI study phase',
-        questions: [],
-        isWizardStep: true
-      },
-      data_collection: {
-        id: 'data_collection',
-        title: 'Data Collection',
-        description: 'Define your data collection approach',
-        questions: [],
-        isWizardStep: true
-      },
-      ...newConfig.sections
-    };
-
-    // Store current form data
-    const storedData = { ...formData };
-
-    // Update configuration and wizard state
-    setCurrentFormConfig({ sections: wizardSections });
-    setWizardState(newWizardState);
-
-    // Update completed sections
-    setCompletedSections(prev => {
-      const newCompleted = new Set(prev);
-      // Add wizard steps
-      newCompleted.add('study_phase');
-      // Add sections that have data
-      Object.keys(storedData).forEach(sectionId => {
-        if (sectionId in wizardSections) {
-          newCompleted.add(sectionId);
-        }
-      });
-      return Array.from(newCompleted);
-    });
-
-    // Restore form data
-    setFormData(storedData);
-    setPhaseSelectOpen(false);
-  };
-
-  const handleDataTypeChange = (newDataType: 'prospective' | 'retrospective') => {
-    const newWizardState = {
-      ...wizardState,
-      dataCollection: newDataType,
-    };
-    
-    // Update form configuration while preserving data
-    const newConfig = generateFormConfig(newWizardState);
-    const wizardSections: WizardSections = {
-      study_phase: {
-        id: 'study_phase',
-        title: 'Study Phase',
-        description: 'Select your AI study phase',
-        questions: [],
-        isWizardStep: true
-      },
-      data_collection: {
-        id: 'data_collection',
-        title: 'Data Collection',
-        description: 'Define your data collection approach',
-        questions: [],
-        isWizardStep: true
-      },
-      ...newConfig.sections
-    };
-
-    // Store current form data
-    const storedData = { ...formData };
-
-    // Update configuration and wizard state
-    setCurrentFormConfig({ sections: wizardSections });
-    setWizardState(newWizardState);
-
-    // Update completed sections
-    setCompletedSections(prev => {
-      const newCompleted = new Set(prev);
-      // Add wizard steps
-      newCompleted.add('study_phase');
-      newCompleted.add('data_collection');
-      // Add sections that have data
-      Object.keys(storedData).forEach(sectionId => {
-        if (sectionId in wizardSections) {
-          newCompleted.add(sectionId);
-        }
-      });
-      return Array.from(newCompleted);
-    });
-
-    // Restore form data
-    setFormData(storedData);
-    setDataTypeSelectOpen(false);
-
-    // If both phase and data collection are set, complete the wizard
-    if (newWizardState.phase && newWizardState.dataCollection) {
-      handleWizardComplete(newWizardState);
-    }
-  };
-
-  // Add this function to handle the initial path selection
-  const handlePathSelection = (path: 'guided' | 'direct') => {
-    if (path === 'direct') {
-      // Go directly to phase selection
-      setActiveSection('study_phase');
-      setNavigationHistory(['study_phase']);
-    } else {
-      // Start guided flow
-      setActiveSection('ai_readiness');
-      setNavigationHistory(['ai_readiness']);
-    }
-  };
-
-  // Add this function to handle phase/data collection updates
-  const handleWizardStateUpdate = (updates: Partial<WizardState>) => {
-    const newState = { ...wizardState, ...updates };
-    setWizardState(newState);
-    const newConfig = generateFormConfig(newState);
-    setCurrentFormConfig(newConfig);
-  };
-
   // Add proper type checking for wizard steps
   const isWizardStep = (sectionId: string): boolean => {
-    return ['study_phase', 'data_collection'].includes(sectionId);
+    return sectionId === 'ai_wizard';
   };
 
-  // Update the disabledSections calculation
+  // Update getBreadcrumbSections to use proper Section interface
+  const getBreadcrumbSections = () => {
+    // AI Wizard is always first
+    const sections: Record<string, Section> = {
+      ai_wizard: {
+        id: 'ai_wizard',
+        title: 'AI Wizard',
+        description: 'Configure study type',
+        questions: [],
+        isWizardStep: true
+      },
+      getting_started: {
+        id: 'getting_started',
+        title: 'Getting Started',
+        description: 'Initial study information',
+        questions: moduleQuestions.getting_started,
+        isWizardStep: false
+      }
+    };
+
+    // Add module sections from wizard selections
+    wizardState.selectedModules?.core.forEach((moduleTitle) => {
+      const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
+      sections[sectionId] = {
+        id: sectionId,
+        title: moduleTitle,
+        description: `Complete ${moduleTitle} information`,
+        questions: [], // Questions would be defined in formConfig
+        dynamicFields: false,
+        isWizardStep: false
+      };
+    });
+
+    wizardState.selectedModules?.additional.forEach((moduleTitle) => {
+      const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
+      sections[sectionId] = {
+        id: sectionId,
+        title: moduleTitle,
+        description: `Complete ${moduleTitle} information`,
+        questions: [], // Questions would be defined in formConfig
+        dynamicFields: false,
+        isWizardStep: false
+      };
+    });
+
+    return sections;
+  };
+
+  // Add this effect to track visited sections
+  useEffect(() => {
+    if (activeSection && !visitedSections.includes(activeSection)) {
+      setVisitedSections(prev => [...prev, activeSection]);
+    }
+  }, [activeSection]);
+
+  // Update the disabledSections calculation to use visitedSections
   const disabledSections = Object.entries(currentFormConfig.sections)
     .filter(([id, section]) => 
       id !== 'initial_information' && 
+      !visitedSections.includes(id) &&
       !completedSections.includes(id) ||
       section.isDisabled === true ||
       (isWizardStep(id) && !wizardComplete)
     )
     .map(([id]) => id);
 
-  // Add check before rendering FormSection
+  // Add renderFormSection function
   const renderFormSection = () => {
     if (!section) {
       return (
@@ -543,6 +546,7 @@ const DynamicForm: React.FC = () => {
         errors={errors[activeSection] || {}}
         skippedFields={skippedSections.includes(activeSection) ? getSkippedFields(activeSection) : []}
         onHelpClick={() => setHelpOpen(true)}
+        helpIcon={<HelpIcon />}
       />
     );
   };
@@ -630,35 +634,117 @@ const DynamicForm: React.FC = () => {
     );
   }
 
-  // Add this helper function to transform validation errors
-  const transformValidationErrors = (errors: Record<string, Record<string, ValidationError>>): Record<string, string[]> => {
-    return Object.entries(errors).reduce((acc, [sectionId, sectionErrors]) => {
-      acc[sectionId] = Object.values(sectionErrors).map(error => error.message);
-      return acc;
-    }, {} as Record<string, string[]>);
-  };
-
   // Add these computed values
   const isLastSection = activeSection === Object.keys(currentFormConfig.sections)[Object.keys(currentFormConfig.sections).length - 1];
-  const canNavigateBack = activeSection !== 'initial_information' || showWizard;
+  const canNavigateBack = (() => {
+    // Disable back button if we're on Getting Started (first form after AI Wizard)
+    if (activeSection === 'getting_started') {
+      return false;
+    }
+    
+    // Otherwise, use normal navigation rules
+    return activeSection !== 'initial_information' || showWizard;
+  })();
 
-  // Main form view
+  // Update the settings menu to use more icons meaningfully
+  const renderSettingsMenu = () => (
+    <Menu
+      anchorEl={settingsAnchorEl}
+      open={isSettingsOpen}
+      onClose={handleSettingsClose}
+    >
+      <MenuItem onClick={() => {
+        handleClearForm();
+        handleSettingsClose();
+      }}>
+        <ListItemIcon>
+          <DeleteIcon color="error" />
+        </ListItemIcon>
+        <ListItemText>Clear Form</ListItemText>
+      </MenuItem>
+      <MenuItem onClick={handleSettingsClose}>
+        <ListItemIcon>
+          <EditIcon />
+        </ListItemIcon>
+        <ListItemText>Edit Settings</ListItemText>
+      </MenuItem>
+    </Menu>
+  );
+
+  // Add icons to navigation buttons
+  const renderNavigationButtons = () => (
+    <Box sx={{ 
+      mt: theme.spacing(4), 
+      display: 'flex', 
+      justifyContent: 'space-between',
+      borderTop: `1px solid ${theme.palette.divider}`,
+      pt: theme.spacing(3)
+    }}>
+      <Button
+        startIcon={<BackIcon />}
+        onClick={handleBack}
+        disabled={!canNavigateBack}
+      >
+        Back
+      </Button>
+      <Button
+        variant="contained"
+        endIcon={isLastSection ? <CheckCircleIcon /> : <NavigateNextIcon />}
+        onClick={handleNext}
+      >
+        {isLastSection ? 'Review' : 'Next'}
+      </Button>
+    </Box>
+  );
+
+  // Move all dialogs into a fragment inside the main return statement
   return (
     <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
       {/* Title Section */}
       <Box 
         sx={{ 
-          bgcolor: 'background.paper',
-          borderBottom: 1,
-          borderColor: 'divider',
-          pt: 4,
-          pb: 2
+          bgcolor: theme.palette.background.paper,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          pt: theme.spacing(4),
+          pb: theme.spacing(2)
         }}
       >
         <Container maxWidth="lg">
-          <Typography variant="h3" gutterBottom color="primary.dark" sx={{ fontWeight: 700 }}>
-            IRB Application Builder
-          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between'
+          }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="h3" gutterBottom color="primary.dark" sx={{ fontWeight: 700 }}>
+                IRB Application Builder
+              </Typography>
+              <IconButton 
+                onClick={() => setHelpOpen(true)}
+                color="primary"
+                sx={{ mt: -1 }}
+              >
+                <HelpIcon />
+              </IconButton>
+            </Box>
+            
+            {/* Add Timer */}
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 1,
+              bgcolor: 'background.paper',
+              p: 1,
+              borderRadius: 1,
+              border: 1,
+              borderColor: 'divider'
+            }}>
+              <AccessTimeIcon color="action" />
+              <Typography variant="body2" color="text.secondary">
+                Est. time: {wizardState.estimatedTime} min
+              </Typography>
+            </Box>
+          </Box>
           <Typography variant="h6" color="text.secondary">
             Complete each section to build your comprehensive IRB application
           </Typography>
@@ -676,13 +762,13 @@ const DynamicForm: React.FC = () => {
         <Container maxWidth="lg" sx={{ position: 'relative', py: 2 }}>
           {renderStudyTypeChip()}
           <SectionHeader
-            sections={Object.values(currentFormConfig.sections)}
-            completedSections={completedSections}
+            sections={Object.values(getBreadcrumbSections())}
+            completedSections={['ai_wizard', ...completedSections]} // Always include ai_wizard as completed
             skippedSections={skippedSections}
             activeSection={activeSection}
             onSectionClick={handleSectionChange}
-            wizardSteps={['study_phase', 'data_collection']}
-            showAllSections={wizardComplete}
+            wizardSteps={['ai_wizard']}
+            showAllSections={true}  // Always show all sections after wizard
             disabledSections={disabledSections}
             navigationHistory={navigationHistory}
             onWizardStepClick={() => {
@@ -705,21 +791,7 @@ const DynamicForm: React.FC = () => {
               <IconButton onClick={handleSettingsClick}>
                 <SettingsIcon />
               </IconButton>
-              <Menu
-                anchorEl={settingsAnchorEl}
-                open={isSettingsOpen}
-                onClose={handleSettingsClose}
-              >
-                <MenuItem onClick={() => {
-                  handleClearForm();
-                  handleSettingsClose();
-                }}>
-                  <ListItemIcon>
-                    <DeleteIcon color="error" />
-                  </ListItemIcon>
-                  <ListItemText>Clear Form</ListItemText>
-                </MenuItem>
-              </Menu>
+              {renderSettingsMenu()}
             </Box>
 
             {/* Form Section */}
@@ -736,29 +808,7 @@ const DynamicForm: React.FC = () => {
             </AnimatePresence>
 
             {/* Navigation Buttons */}
-            <Box sx={{ 
-              mt: 4, 
-              display: 'flex', 
-              justifyContent: 'space-between',
-              borderTop: 1,
-              borderColor: 'divider',
-              pt: 3
-            }}>
-              <Button
-                startIcon={<BackIcon />}
-                onClick={handleBack}
-                disabled={!canNavigateBack}
-              >
-                Back
-              </Button>
-              <Button
-                variant="contained"
-                endIcon={<NextIcon />}
-                onClick={handleNext}
-              >
-                {isLastSection ? 'Review' : 'Next'}
-              </Button>
-            </Box>
+            {renderNavigationButtons()}
           </Box>
         </Container>
       </Box>
@@ -777,6 +827,200 @@ const DynamicForm: React.FC = () => {
           onClose={() => setHelpOpen(false)}
         />
       </Drawer>
+
+      {/* Floating Help Button for Mobile */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 16,
+          right: 16,
+          display: { xs: 'block', md: 'none' }
+        }}
+      >
+        <IconButton
+          onClick={() => setHelpOpen(true)}
+          sx={{
+            bgcolor: theme.palette.primary.main,
+            color: theme.palette.common.white,
+            '&:hover': {
+              bgcolor: theme.palette.primary.dark
+            },
+            boxShadow: theme.shadows[2],
+            transition: theme.transitions.create(['background-color', 'box-shadow'], {
+              duration: theme.transitions.duration.short
+            })
+          }}
+        >
+          <HelpIcon />
+        </IconButton>
+      </Box>
+
+      {/* Group all dialogs together */}
+      <>
+        {/* Submit Dialog */}
+        <Dialog open={submitDialogOpen} onClose={() => setSubmitDialogOpen(false)}>
+          <DialogTitle>Submit Application?</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to submit your IRB application? Please ensure all sections are complete.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setSubmitDialogOpen(false)}>Review Again</Button>
+            <Button 
+              onClick={() => {
+                console.log('Form submitted:', formData);
+                setSubmitDialogOpen(false);
+              }}
+              color="primary"
+              variant="contained"
+            >
+              Submit Application
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Navigation Warning Dialog */}
+        <Dialog open={navigationWarningOpen} onClose={() => setNavigationWarningOpen(false)}>
+          <DialogTitle>Incomplete Section</DialogTitle>
+          <DialogContent>
+            <Typography gutterBottom>
+              This section has incomplete required fields:
+            </Typography>
+            {/* Add error messages */}
+            <Box sx={{ mt: 2 }}>
+              {Object.entries(getValidationErrorMessages()).map(([sectionId, messages]) => (
+                messages.map((message, index) => (
+                  <Typography 
+                    key={`${sectionId}-${index}`} 
+                    color="error" 
+                    variant="body2" 
+                    sx={{ mt: 1 }}
+                  >
+                    • {message}
+                  </Typography>
+                ))
+              ))}
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setNavigationWarningOpen(false)}>
+              Stay Here
+            </Button>
+            <Button 
+              onClick={() => {
+                if (pendingNavigation) {
+                  setActiveSection(pendingNavigation);
+                  setNavigationWarningOpen(false);
+                  setPendingNavigation(null);
+                }
+              }}
+              color="warning"
+            >
+              Leave Anyway
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Phase Selection Dialog */}
+        <Dialog open={phaseSelectOpen} onClose={() => setPhaseSelectOpen(false)}>
+          <DialogTitle>Change Study Phase</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              {['discovery', 'pilot', 'validation'].map((phase) => (
+                <Button
+                  key={phase}
+                  variant={tempSelection.phase === phase ? 'contained' : 'outlined'}
+                  onClick={() => {
+                    setTempSelection(prev => ({ ...prev, phase: phase as 'discovery' | 'pilot' | 'validation' }));
+                    setWizardState(prev => ({
+                      ...prev,
+                      phase: phase as 'discovery' | 'pilot' | 'validation'
+                    }));
+                    const newConfig = generateFormConfig({
+                      ...wizardState,
+                      phase: phase as 'discovery' | 'pilot' | 'validation'
+                    });
+                    setCurrentFormConfig(newConfig);
+                    setPhaseSelectOpen(false);
+                  }}
+                  sx={{ textTransform: 'capitalize' }}
+                >
+                  {phase} Phase
+                </Button>
+              ))}
+            </Stack>
+          </DialogContent>
+        </Dialog>
+
+        {/* Data Type Selection Dialog */}
+        <Dialog open={dataTypeSelectOpen} onClose={() => setDataTypeSelectOpen(false)}>
+          <DialogTitle>Change Data Collection Type</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              {['prospective', 'retrospective'].map((type) => (
+                <Button
+                  key={type}
+                  variant={tempSelection.dataCollection === type ? 'contained' : 'outlined'}
+                  onClick={() => {
+                    setTempSelection(prev => ({ ...prev, dataCollection: type as 'prospective' | 'retrospective' }));
+                    setWizardState(prev => ({
+                      ...prev,
+                      dataCollection: type as 'prospective' | 'retrospective'
+                    }));
+                    const newConfig = generateFormConfig({
+                      ...wizardState,
+                      dataCollection: type as 'prospective' | 'retrospective'
+                    });
+                    setCurrentFormConfig(newConfig);
+                    setDataTypeSelectOpen(false);
+                  }}
+                  sx={{ textTransform: 'capitalize' }}
+                >
+                  {type} Data Collection
+                </Button>
+              ))}
+            </Stack>
+          </DialogContent>
+        </Dialog>
+
+        {/* Clear Form Dialog */}
+        <Dialog open={clearDialogOpen} onClose={() => setClearDialogOpen(false)}>
+          <DialogTitle>Clear Form?</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to clear all form data? This action cannot be undone.
+            </Typography>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setClearDialogOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={() => {
+                localStorage.removeItem('formProgress');
+                setFormData({});
+                setCompletedSections([]);
+                setSkippedSections([]);
+                setVisitedSections(['initial_information']);
+                setActiveSection('initial_information');
+                setIsReviewMode(false);
+                setShowLandingPage(true);
+                setShowWizard(false);
+                setWizardState({ 
+                  phase: undefined,
+                  dataCollection: undefined,
+                  estimatedTime: 0 
+                });
+                setCurrentFormConfig(formConfig);
+                clearErrors(activeSection);
+                setClearDialogOpen(false);
+              }}
+              color="error"
+            >
+              Clear All Data
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </>
     </Box>
   );
 };

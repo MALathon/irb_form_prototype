@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
-  Typography,
-  Avatar,
-  Chip,
+  TextField,
   Button,
   List,
   ListItem,
@@ -11,131 +9,133 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   IconButton,
+  Avatar,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
+  Select,
   MenuItem,
-  Tooltip,
+  FormControl,
+  InputLabel,
+  Stack,
 } from '@mui/material';
 import {
   Person as PersonIcon,
-  Edit as EditIcon,
   Delete as DeleteIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import type { TeamMember, StudyRole } from '../types/index';
+import type { TeamMember, StudyRole } from '../types';
 import { STUDY_ROLES } from '../config/formConfig';
-
-// Simulated MDM database search
-const searchMDM = async (query: string): Promise<TeamMember[]> => {
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return [
-    {
-      id: '1',
-      name: 'Dr. Jane Smith',
-      title: 'Associate Professor',
-      department: 'Radiology',
-      expertise: ['AI/ML', 'Medical Imaging'],
-      email: 'jane.smith@example.com'
-    },
-    // Add more mock data as needed
-  ].filter(member => 
-    member.name.toLowerCase().includes(query.toLowerCase()) ||
-    member.department.toLowerCase().includes(query.toLowerCase())
-  );
-};
 
 interface TeamManagementProps {
   value: TeamMember[];
   onChange: (members: TeamMember[]) => void;
 }
 
-export const TeamManagement: React.FC<TeamManagementProps> = ({ value, onChange }) => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<TeamMember[]>([]);
-  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
+interface AddMemberDialogProps {
+  open: boolean;
+  onClose: () => void;
+  onAdd: (member: TeamMember) => void;
+}
 
-  useEffect(() => {
-    const search = async () => {
-      if (searchQuery.length >= 2) {
-        const results = await searchMDM(searchQuery);
-        setSearchResults(results);
-      } else {
-        setSearchResults([]);
-      }
-    };
-    search();
-  }, [searchQuery]);
+const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ open, onClose, onAdd }) => {
+  const [name, setName] = useState('');
+  const [selectedRole, setSelectedRole] = useState<StudyRole | undefined>();
 
-  const handleAddMember = (member: TeamMember) => {
-    setSelectedMember(member);
-    setDialogOpen(true);
+  const handleAdd = () => {
+    if (name && selectedRole) {
+      onAdd({
+        id: Math.random().toString(36).substr(2, 9),
+        name,
+        role: selectedRole,
+        title: '',
+        department: '',
+        expertise: [],
+        email: ''
+      });
+      setName('');
+      setSelectedRole(undefined);
+      onClose();
+    }
   };
 
-  const handleSaveMember = (role: StudyRole, responsibilities: string) => {
-    if (selectedMember) {
-      const newMember = {
-        ...selectedMember,
-        role,
-        responsibilities
-      };
-      onChange([...value, newMember]);
-    }
-    setDialogOpen(false);
-    setSelectedMember(null);
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Add Team Member</DialogTitle>
+      <DialogContent>
+        <Stack spacing={3} sx={{ mt: 1 }}>
+          <TextField
+            fullWidth
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter team member's name"
+          />
+          <FormControl fullWidth>
+            <InputLabel>Role</InputLabel>
+            <Select
+              value={selectedRole?.id || ''}
+              onChange={(e) => {
+                const role = STUDY_ROLES.find(r => r.id === e.target.value);
+                setSelectedRole(role);
+              }}
+              label="Role"
+            >
+              {STUDY_ROLES.map((role) => (
+                <MenuItem key={role.id} value={role.id}>
+                  {role.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button 
+          onClick={handleAdd}
+          variant="contained" 
+          disabled={!name || !selectedRole}
+        >
+          Add Member
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export const TeamManagement: React.FC<TeamManagementProps> = ({ value = [], onChange }) => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const handleDelete = (memberId: string) => {
+    onChange(value.filter(member => member.id !== memberId));
   };
 
   return (
     <Box>
-      <TextField
-        fullWidth
-        label="Search for team members"
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        placeholder="Type to search the MDM database..."
-        sx={{ mb: 2 }}
-      />
-
-      {searchResults.length > 0 && (
-        <List>
-          {searchResults.map((member) => (
-            <ListItem
-              key={member.id}
-              secondaryAction={
-                <Button
-                  startIcon={<AddIcon />}
-                  onClick={() => handleAddMember(member)}
-                >
-                  Add to Team
-                </Button>
-              }
-            >
-              <ListItemAvatar>
-                <Avatar>
-                  <PersonIcon />
-                </Avatar>
-              </ListItemAvatar>
-              <ListItemText
-                primary={member.name}
-                secondary={`${member.title} - ${member.department}`}
-              />
-            </ListItem>
-          ))}
-        </List>
-      )}
-
-      <Typography variant="h6" sx={{ mt: 4, mb: 2 }}>
-        Current Team Members
-      </Typography>
+      <Box sx={{ mb: 2 }}>
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon />}
+          onClick={() => setDialogOpen(true)}
+        >
+          Add Team Member
+        </Button>
+      </Box>
 
       <List>
         {value.map((member) => (
-          <ListItem key={member.id}>
+          <ListItem
+            key={member.id}
+            sx={{
+              bgcolor: 'background.paper',
+              mb: 1,
+              borderRadius: 1,
+              border: '1px solid',
+              borderColor: 'divider',
+            }}
+          >
             <ListItemAvatar>
               <Avatar>
                 <PersonIcon />
@@ -143,27 +143,13 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ value, onChange 
             </ListItemAvatar>
             <ListItemText
               primary={member.name}
-              secondary={
-                <Box>
-                  <Typography variant="body2">
-                    {member.role?.label}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {member.responsibilities}
-                  </Typography>
-                </Box>
-              }
+              secondary={member.role?.label || 'No role assigned'}
             />
             <ListItemSecondaryAction>
               <IconButton
                 edge="end"
-                onClick={() => {/* Handle edit */}}
-              >
-                <EditIcon />
-              </IconButton>
-              <IconButton
-                edge="end"
-                onClick={() => {/* Handle delete */}}
+                onClick={() => handleDelete(member.id)}
+                color="error"
               >
                 <DeleteIcon />
               </IconButton>
@@ -172,12 +158,15 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ value, onChange 
         ))}
       </List>
 
-      <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
-        <DialogTitle>Add Team Member</DialogTitle>
-        <DialogContent>
-          {/* Add role selection and responsibilities form */}
-        </DialogContent>
-      </Dialog>
+      <AddMemberDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onAdd={(newMember) => {
+          onChange([...value, newMember]);
+        }}
+      />
     </Box>
   );
-}; 
+};
+
+export default TeamManagement; 

@@ -62,6 +62,9 @@ export type QuestionType =
 export interface SelectOption {
   value: string;
   label: string;
+  disabled?: boolean;
+  isComingSoon?: boolean;
+  default?: boolean;
 }
 
 export interface Question {
@@ -130,6 +133,7 @@ export interface FormSectionProps {
   errors?: Record<string, ValidationError>;
   skippedFields?: string[];
   onHelpClick?: () => void;
+  helpIcon?: React.ReactNode;
 }
 
 export interface ProgressTrackerProps {
@@ -174,4 +178,8 @@ export interface WizardState {
   phase?: Phase;
   dataCollection?: DataCollection;
   estimatedTime: number;
+  selectedModules?: {
+    core: string[];
+    additional: string[];
+  };
 } 
