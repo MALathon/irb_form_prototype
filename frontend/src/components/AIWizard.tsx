@@ -6,8 +6,6 @@ import {
   Paper,
   Stack,
   Chip,
-  IconButton,
-  Tooltip,
   Button,
   List,
   ListItem,
@@ -26,7 +24,6 @@ import {
   AddCircle as AddCircleIcon,
   ArrowBack as BackIcon,
   CheckCircle as BaseModuleIcon,
-  ArrowForward as InheritedModuleIcon,
   AddCircle as NewModuleIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -50,6 +47,10 @@ interface WizardState {
   phase?: 'discovery' | 'pilot' | 'validation';
   dataCollection?: 'prospective' | 'retrospective';
   estimatedTime: number;
+  selectedModules?: {
+    core: string[];
+    additional: string[];
+  };
 }
 
 interface AIWizardProps {
@@ -96,21 +97,24 @@ const wizardSteps: WizardStep[] = [
         description: "You're at the beginning of your AI journey - planning to collect data and develop your initial model. This is an exciting first step!",
         value: 'not_started',
         leadTo: 'discovery',
-        timeImpact: 30
+        timeImpact: 30,
+        icon: <ScienceIcon />
       },
       {
         label: "Have a model that needs testing",
         description: "You've developed your AI model and now need to validate its performance. We'll help you plan the right testing approach.",
         value: 'developed',
         leadTo: 'pilot',
-        timeImpact: 45
+        timeImpact: 45,
+        icon: <TimelineIcon />
       },
       {
         label: "Ready for clinical implementation",
         description: "Your model is tested and you're ready to implement it in clinical practice. We'll help ensure a smooth transition.",
         value: 'tested',
         leadTo: 'validation',
-        timeImpact: 60
+        timeImpact: 60,
+        icon: <PsychologyIcon />
       }
     ]
   },
@@ -141,7 +145,13 @@ const renderModuleList = (modules: { core: string[], additional: string[] }) => 
   <Box>
     {modules.core.length > 0 && (
       <Box sx={{ mb: 3 }}>
-        <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+        <Typography 
+          variant="subtitle2" 
+          color="text.secondary" 
+          gutterBottom
+          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+        >
+          <BaseModuleIcon fontSize="small" color="success" />
           Core Modules:
         </Typography>
         <List dense>
@@ -159,7 +169,13 @@ const renderModuleList = (modules: { core: string[], additional: string[] }) => 
     
     {modules.additional.length > 0 && (
       <Box>
-        <Typography variant="subtitle2" color="primary.main" gutterBottom>
+        <Typography 
+          variant="subtitle2" 
+          color="primary.main" 
+          gutterBottom
+          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+        >
+          <NewModuleIcon fontSize="small" color="primary" />
           Additional Modules:
         </Typography>
         <List dense>
@@ -332,9 +348,9 @@ const PhaseConfirmation: React.FC<PhaseConfirmationProps> = ({
             <Button
               variant="outlined"
               size="large"
-              startIcon={<RefreshIcon />}
-              onClick={onReset}
               color="error"
+              onClick={onReset}
+              startIcon={<RefreshIcon />}
             >
               Start Over
             </Button>
@@ -532,6 +548,29 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
 
   // Add completedSections state
   const [completedSections, setCompletedSections] = useState<string[]>([]);
+
+  // Add useEffect to handle path changes
+  useEffect(() => {
+    if (path === 'direct') {
+      setSections(directPathSections);
+    } else if (path === 'guided') {
+      setSections(guidedPathSections);
+    } else {
+      setSections([{
+        id: 'getting_started',
+        title: 'Getting Started',
+        description: 'Choose how to proceed',
+        questions: []
+      }]);
+    }
+  }, [path]);
+
+  // Add useEffect to handle state initialization
+  useEffect(() => {
+    if (initialState) {
+      setState(initialState);
+    }
+  }, [initialState]);
 
   const handleOptionSelect = (value: string) => {
     setSelectedOption(value);
@@ -899,14 +938,45 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     .slice(0, currentStep)
     .map(section => section.id);
 
-  // Get all sections that should be disabled
+  // Replace the hardcoded getDisabledSections with a more dynamic approach
   const getDisabledSections = () => {
     const allSections = getAllPossibleSections();
+    const currentPhase = state.phase;
+    const currentDataCollection = state.dataCollection;
+    
     return allSections
-      .filter(section => 
-        section.id !== currentSectionId && 
-        !currentlyCompletedSections.includes(section.id)
-      )
+      .filter(section => {
+        // Base conditions for disabled sections
+        const isNotCurrentSection = section.id !== currentSectionId;
+        const isNotCompleted = !currentlyCompletedSections.includes(section.id);
+        
+        // Phase-specific conditions
+        const isPhaseSpecific = section.id.includes('model_') || 
+                               section.id.includes('testing_') || 
+                               section.id.includes('clinical_');
+        const isWrongPhase = isPhaseSpecific && (
+          (section.id.includes('model_development') && currentPhase !== 'discovery') ||
+          (section.id.includes('testing_') && currentPhase !== 'pilot') ||
+          (section.id.includes('clinical_') && currentPhase !== 'validation')
+        );
+        
+        // Data collection specific conditions
+        const isDataSpecific = section.id.includes('data_collection_') || 
+                              section.id.includes('data_source');
+        const isWrongDataType = isDataSpecific && (
+          (section.id.includes('data_collection_') && currentDataCollection !== 'prospective') ||
+          (section.id.includes('data_source') && currentDataCollection !== 'retrospective')
+        );
+        
+        // Common sections condition
+        const isCommonSection = section.id === 'safety_ethics';
+        const commonSectionDisabled = isCommonSection && (!currentPhase || !currentDataCollection);
+        
+        return (isNotCurrentSection && isNotCompleted) || 
+               isWrongPhase || 
+               isWrongDataType || 
+               commonSectionDisabled;
+      })
       .map(section => section.id);
   };
 
@@ -948,92 +1018,6 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     return null;
   };
 
-  const renderReviewAndConfirm = () => {
-    if (!state.phase || !state.dataCollection) {
-      return null;
-    }
-
-    const phaseConfig = phaseModules[state.phase];
-    const dataConfig = dataCollectionModules[state.dataCollection];
-
-    if (!phaseConfig || !dataConfig) {
-      return null;
-    }
-
-    return (
-      <Stack spacing={3}>
-        {/* Phase Review */}
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h5" gutterBottom color="primary">
-            {phaseConfig.title}
-          </Typography>
-          <Typography color="text.secondary" paragraph>
-            {phaseConfig.explanation}
-          </Typography>
-
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="h6" gutterBottom>Required Modules:</Typography>
-            <List>
-              {phaseConfig.modules.core.map((module) => (
-                <ListItem key={module}>
-                  <ListItemIcon><BaseModuleIcon color="primary" /></ListItemIcon>
-                  <ListItemText primary={module} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="h6" gutterBottom>Additional Modules:</Typography>
-            <List>
-              {phaseConfig.modules.additional.map((module) => (
-                <ListItem key={module}>
-                  <ListItemIcon><AddCircleIcon color="secondary" /></ListItemIcon>
-                  <ListItemText primary={module} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </Paper>
-
-        {/* Data Collection Review */}
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h5" gutterBottom color="primary">
-            {dataConfig.title}
-          </Typography>
-          <Typography color="text.secondary" paragraph>
-            {dataConfig.explanation}
-          </Typography>
-
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="h6" gutterBottom>Required Modules:</Typography>
-            <List>
-              {dataConfig.modules.core.map((module) => (
-                <ListItem key={module}>
-                  <ListItemIcon><BaseModuleIcon color="primary" /></ListItemIcon>
-                  <ListItemText primary={module} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-
-          <Box sx={{ mt: 3 }}>
-            <Typography variant="h6" gutterBottom>Additional Modules:</Typography>
-            <List>
-              {dataConfig.modules.additional.map((module) => (
-                <ListItem key={module}>
-                  <ListItemIcon><AddCircleIcon color="secondary" /></ListItemIcon>
-                  <ListItemText primary={module} />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </Paper>
-      </Stack>
-    );
-  };
-
-  // Add direct selection render
   const renderDirectSelection = () => (
     <Stack spacing={4}>
       {/* Phase Selection */}
@@ -1136,6 +1120,25 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     </Stack>
   );
 
+  const handleWizardComplete = () => {
+    // Get the modules based on selections
+    const selectedPhaseModules = state.phase ? phaseModules[state.phase].modules : { core: [], additional: [] };
+    const selectedDataModules = state.dataCollection ? dataCollectionModules[state.dataCollection].modules : { core: [], additional: [] };
+
+    // Combine all selected modules
+    const selectedModules = {
+      core: [...selectedPhaseModules.core, ...selectedDataModules.core],
+      additional: [...selectedPhaseModules.additional, ...selectedDataModules.additional]
+    };
+
+    onComplete({
+      phase: state.phase,
+      dataCollection: state.dataCollection,
+      estimatedTime: state.estimatedTime,
+      selectedModules
+    });
+  };
+
   return (
     <Box sx={{ 
       minHeight: '100vh',
@@ -1199,9 +1202,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
             }}
             wizardSteps={[]}
             showAllSections={true}
-            disabledSections={sections
-              .filter((section, index) => index > currentStep)
-              .map(section => section.id)}
+            disabledSections={getDisabledSections()}
           />
         </Container>
       </Box>
@@ -1252,7 +1253,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
               phase={state.phase as Phase}
               dataCollection={state.dataCollection as DataCollection}
               estimatedTime={state.estimatedTime}
-              onConfirm={() => onComplete(state)}
+              onConfirm={handleWizardComplete}
               onReset={() => {
                 setState({ estimatedTime: 0 });
                 setPath(null);
