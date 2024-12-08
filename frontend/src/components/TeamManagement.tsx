@@ -25,19 +25,9 @@ import {
   Delete as DeleteIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import type { TeamMember, StudyRole } from '../types';
-import { STUDY_ROLES } from '../config/formConfig';
-
-interface TeamManagementProps {
-  value: TeamMember[];
-  onChange: (members: TeamMember[]) => void;
-}
-
-interface AddMemberDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onAdd: (member: TeamMember) => void;
-}
+import type { StudyRole } from '../types';
+import type { TeamManagementProps, AddMemberDialogProps } from '../types/components';
+import { STUDY_ROLES } from '../config/studyRoles';
 
 const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ open, onClose, onAdd }) => {
   const [name, setName] = useState('');
@@ -105,6 +95,7 @@ const AddMemberDialog: React.FC<AddMemberDialogProps> = ({ open, onClose, onAdd 
   );
 };
 
+// Export the component
 export const TeamManagement: React.FC<TeamManagementProps> = ({ value = [], onChange }) => {
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -150,6 +141,7 @@ export const TeamManagement: React.FC<TeamManagementProps> = ({ value = [], onCh
                 edge="end"
                 onClick={() => handleDelete(member.id)}
                 color="error"
+                disabled={member.role?.required}
               >
                 <DeleteIcon />
               </IconButton>

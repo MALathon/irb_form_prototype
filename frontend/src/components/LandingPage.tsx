@@ -13,7 +13,6 @@ import {
   Description as DescriptionIcon,
   QuestionAnswer as QuestionAnswerIcon,
   AutoAwesome as AIIcon,
-  Send as SendIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
 } from '@mui/icons-material';
@@ -27,19 +26,19 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
 
   const steps = [
     {
-      icon: <QuestionAnswerIcon fontSize="large" />,
+      icon: <QuestionAnswerIcon fontSize="large" color="primary" />,
       title: "Simple Questions",
       description: "We'll guide you through some basic questions about your research",
       isComingSoon: false
     },
     {
-      icon: <DescriptionIcon fontSize="large" />,
+      icon: <DescriptionIcon fontSize="large" color="primary" />,
       title: "Protocol Generation",
       description: "We'll help you create a complete, well-structured protocol",
       isComingSoon: false
     },
     {
-      icon: <DownloadIcon fontSize="large" />,
+      icon: <DownloadIcon fontSize="large" color="primary" />,
       title: "Download Protocol",
       description: "Download your completed protocol as a formatted document",
       isComingSoon: false
@@ -104,7 +103,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                 justifyContent: 'center'
               }}
             >
-              {steps.map((step, index) => (
+              {steps.map((step) => (
                 <Paper
                   key={step.title}
                   sx={{
@@ -112,7 +111,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                     width: 220,
                     position: 'relative',
                     overflow: 'hidden',
-                    transition: 'transform 0.2s, box-shadow 0.2s',
+                    transition: 'transform 0.2s, box-shadow 0.6s',
                     '&:hover': {
                       transform: 'translateY(-4px)',
                       boxShadow: theme.shadows[8],
@@ -123,46 +122,50 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                     <Box
                       sx={{
                         position: 'absolute',
-                        top: 16,
-                        right: -28,
+                        top: 25,
+                        right: -65,
                         transform: 'rotate(45deg)',
                         bgcolor: 'info.main',
                         color: 'common.white',
-                        py: 0.5,
-                        px: 4,
-                        opacity: 0.9,
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                        py: 0.75,
+                        width: 180,
+                        textAlign: 'center',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                        zIndex: 1
                       }}
                     >
                       <Typography 
                         variant="caption" 
                         sx={{ 
                           fontWeight: 500,
-                          letterSpacing: '0.5px'
+                          letterSpacing: '0.5px',
+                          display: 'block',
+                          lineHeight: 1.2,
+                          fontSize: '0.55rem',
+                          ml: '9px',
+                          mr: '18px',
+                          mt: '-2px',
+                          mb: '-3px'
                         }}
                       >
                         Coming Soon
                       </Typography>
                     </Box>
                   )}
-                  <Stack 
-                    spacing={2} 
-                    alignItems="center" 
-                    sx={{ 
-                      opacity: step.isComingSoon ? 0.7 : 1,
-                      filter: step.isComingSoon ? 'grayscale(20%)' : 'none'
-                    }}
-                  >
-                    <Box sx={{ color: 'primary.main' }}>
-                      {step.icon}
-                    </Box>
-                    <Typography variant="h6" align="center">
+                  <Box sx={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center',
+                    opacity: step.isComingSoon ? 0.5 : 1
+                  }}>
+                    {step.icon}
+                    <Typography variant="h6" align="center" gutterBottom sx={{ mt: 2 }}>
                       {step.title}
                     </Typography>
                     <Typography variant="body2" align="center" color="text.secondary">
                       {step.description}
                     </Typography>
-                  </Stack>
+                  </Box>
                 </Paper>
               ))}
             </Box>

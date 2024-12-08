@@ -1,168 +1,142 @@
-import React, { useState, useCallback } from 'react';
-import {
+import React, { useCallback, useState } from 'react';
+import { 
   Box,
   Typography,
+  IconButton,
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Paper,
-  Button,
-  Tooltip,
+  ListItemSecondaryAction
 } from '@mui/material';
 import {
   CloudUpload as UploadIcon,
-  Delete as DeleteIcon,
-  Description as FileIcon,
-  Download as DownloadIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
-import { useDropzone, DropzoneOptions } from 'react-dropzone';
 
 export interface UploadedFile {
   id: string;
   name: string;
   size: number;
-  type: string;
-  uploadDate: Date;
+  type?: string;
   url?: string;
 }
 
 interface FileUploadProps {
-  files: UploadedFile[];
-  onFilesAdd: (newFiles: File[]) => void;
-  onFileDelete: (fileId: string) => void;
+  onChange: (files: UploadedFile[]) => void;
+  value?: UploadedFile[];
+  multiple?: boolean;
+  onFileDelete?: (fileId: string) => void;
   onFileDownload?: (file: UploadedFile) => void;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({
-  files,
-  onFilesAdd,
+export const FileUpload: React.FC<FileUploadProps> = ({ 
+  onChange, 
+  value = [], 
+  multiple = false,
   onFileDelete,
-  onFileDownload,
+  onFileDownload 
 }) => {
-  const [isDragging, setIsDragging] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    onFilesAdd(acceptedFiles);
-  }, [onFilesAdd]);
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    
+    const droppedFiles = Array.from(e.dataTransfer.files).map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      name: file.name,
+      size: file.size,
+      type: file.type
+    }));
+    onChange(multiple ? [...value, ...droppedFiles] : [droppedFiles[0]]);
+  }, [multiple, onChange, value]);
 
-  const onDragEnter = useCallback(() => {
-    setIsDragging(true);
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(true);
   }, []);
 
-  const onDragLeave = useCallback(() => {
-    setIsDragging(false);
+  const handleDragLeave = useCallback(() => {
+    setDragOver(false);
   }, []);
 
-  const dropzoneOptions: DropzoneOptions = {
-    onDrop,
-    onDragEnter,
-    onDragLeave,
-    onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-    },
-    multiple: true,
-    accept: {
-      'application/pdf': ['.pdf'],
-      'application/msword': ['.doc'],
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'text/plain': ['.txt'],
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files).map(file => ({
+        id: Math.random().toString(36).substr(2, 9),
+        name: file.name,
+        size: file.size,
+        type: file.type
+      }));
+      onChange(multiple ? [...value, ...selectedFiles] : [selectedFiles[0]]);
     }
-  };
+  }, [multiple, onChange, value]);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone(dropzoneOptions);
-
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
+  const handleDelete = useCallback((index: number) => {
+    const fileToDelete = value[index];
+    if (onFileDelete) {
+      onFileDelete(fileToDelete.id);
+    }
+    onChange(value.filter((_, i) => i !== index));
+  }, [onChange, value, onFileDelete]);
 
   return (
     <Box>
-      {/* Drop Zone */}
-      <Paper
-        {...getRootProps()}
+      <Box
         sx={{
-          p: 3,
-          mb: 2,
           border: '2px dashed',
-          borderColor: isDragActive ? 'primary.main' : 'grey.300',
-          bgcolor: isDragActive ? 'primary.lighter' : 'background.paper',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          '&:hover': {
-            borderColor: 'primary.main',
-            bgcolor: 'primary.lighter',
-          },
+          borderColor: dragOver ? 'primary.main' : 'grey.300',
+          borderRadius: 1,
+          p: 3,
+          textAlign: 'center',
+          bgcolor: dragOver ? 'action.hover' : 'background.paper',
+          cursor: 'pointer'
         }}
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onClick={() => document.getElementById('file-input')?.click()}
       >
-        <input {...getInputProps()} type="file" style={{ display: 'none' }} />
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 2,
-          }}
-        >
-          <UploadIcon color="primary" sx={{ fontSize: 40 }} />
-          <Typography variant="h6" color="primary">
-            {isDragActive
-              ? 'Drop files here'
-              : 'Drag and drop files here, or click to select'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Upload any relevant documents, protocols, or supporting materials
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Supported formats: PDF, DOC, DOCX, TXT
-          </Typography>
-        </Box>
-      </Paper>
+        <input
+          id="file-input"
+          type="file"
+          multiple={multiple}
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
+        <UploadIcon color="primary" sx={{ fontSize: 40, mb: 1 }} />
+        <Typography>
+          Drag and drop files here or click to select
+        </Typography>
+      </Box>
 
-      {/* File List */}
-      {files.length > 0 && (
-        <Paper sx={{ mt: 3 }}>
-          <List>
-            {files.map((file) => (
-              <ListItem key={file.id} divider>
-                <FileIcon sx={{ mr: 2 }} />
-                <ListItemText
-                  primary={file.name}
-                  secondary={`${formatFileSize(file.size)} • ${new Date(
-                    file.uploadDate
-                  ).toLocaleDateString()}`}
-                />
-                <ListItemSecondaryAction>
-                  {onFileDownload && (
-                    <Tooltip title="Download">
-                      <IconButton
-                        edge="end"
-                        onClick={() => onFileDownload(file)}
-                        sx={{ mr: 1 }}
-                      >
-                        <DownloadIcon />
-                      </IconButton>
-                    </Tooltip>
-                  )}
-                  <Tooltip title="Delete">
-                    <IconButton
-                      edge="end"
-                      onClick={() => onFileDelete(file.id)}
-                      color="error"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
-                </ListItemSecondaryAction>
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
+      {value.length > 0 && (
+        <List>
+          {value.map((file, index) => (
+            <ListItem 
+              key={index}
+              onClick={() => onFileDownload && onFileDownload(file)}
+              sx={{ cursor: onFileDownload ? 'pointer' : 'default' }}
+            >
+              <ListItemText 
+                primary={file.name}
+                secondary={`${(file.size / 1024).toFixed(1)} KB`}
+              />
+              <ListItemSecondaryAction>
+                <IconButton 
+                  edge="end" 
+                  aria-label="delete"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDelete(index);
+                  }}
+                >
+                  <DeleteIcon />
+                </IconButton>
+              </ListItemSecondaryAction>
+            </ListItem>
+          ))}
+        </List>
       )}
     </Box>
   );

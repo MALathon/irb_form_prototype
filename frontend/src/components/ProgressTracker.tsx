@@ -9,14 +9,12 @@ import {
 } from '@mui/material';
 import { motion, AnimatePresence } from 'framer-motion';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import type { ProgressTrackerProps } from '../types';
 
 const ProgressTracker: React.FC<ProgressTrackerProps> = ({
   completedSections,
   totalSections,
-  currentSection,
   estimatedTimeRemaining,
   validationErrors,
 }) => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   TextField,
   FormControl,
@@ -21,11 +21,11 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import type { DateRange, Question, FormSectionProps, TeamMember } from '../types';
+import type { DateRange, Question, FormSectionProps } from '../types/form';
+import { TeamManagement } from './TeamManagement';
 import type { SxProps, Theme } from '@mui/material/styles';
 import ChipSelect from './ChipSelect';
 import { FileUpload, type UploadedFile } from './FileUpload';
-import { TeamManagement } from './TeamManagement';
 
 const getDropdownValue = (value: unknown): string => {
   if (typeof value === 'string') return value;
@@ -42,8 +42,6 @@ const FormSection: React.FC<FormSectionProps> = ({
   onHelpClick,
   helpIcon
 }) => {
-  const [infoOpen, setInfoOpen] = useState(false);
-
   if (!section) {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
@@ -232,38 +230,24 @@ const FormSection: React.FC<FormSectionProps> = ({
           />
         );
 
-      case 'dynamic_list':
-        // Implementation for dynamic list
-        return null;
-
       case 'file_upload':
         return (
           <FileUpload
-            files={data[question.id] as UploadedFile[] || []}
-            onFilesAdd={(newFiles) => {
-              const uploadedFiles: UploadedFile[] = newFiles.map(file => ({
-                id: Math.random().toString(36).substr(2, 9),
-                name: file.name,
-                size: file.size,
-                type: file.type,
-                uploadDate: new Date()
-              }));
-              
-              onChange(question.id, [
-                ...(data[question.id] as UploadedFile[] || []),
-                ...uploadedFiles
-              ]);
+            value={data[question.id] as UploadedFile[] || []}
+            onChange={(files) => {
+              onChange(question.id, files);
             }}
+            multiple={true}
             onFileDelete={(fileId) => {
               const currentFiles = data[question.id] as UploadedFile[] || [];
               onChange(
-                question.id,
+                question.id, 
                 currentFiles.filter(f => f.id !== fileId)
               );
             }}
             onFileDownload={(file) => {
-              // Implement download functionality
-              console.log('Downloading file:', file);
+              // Handle file download if needed
+              console.log('Download file:', file);
             }}
           />
         );
@@ -271,7 +255,7 @@ const FormSection: React.FC<FormSectionProps> = ({
       case 'team_list':
         return (
           <TeamManagement
-            value={(data[question.id] as TeamMember[]) || []}
+            value={data[question.id] || []}
             onChange={(members) => onChange(question.id, members)}
           />
         );
@@ -283,20 +267,6 @@ const FormSection: React.FC<FormSectionProps> = ({
           </Typography>
         );
     }
-  };
-
-  // Add file upload handling
-  const handleFileUpload = (files: File[]) => {
-    // Convert Files to UploadedFiles
-    const uploadedFiles: UploadedFile[] = files.map(file => ({
-      id: Math.random().toString(36).substr(2, 9),
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      uploadDate: new Date()
-    }));
-    
-    return uploadedFiles;
   };
 
   return (

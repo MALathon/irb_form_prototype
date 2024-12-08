@@ -1,22 +1,20 @@
 import React from 'react';
 import {
   Box,
+  Container,
   Typography,
   Button,
   Paper,
-  Divider,
   Stack,
-  Alert,
+  IconButton,
+  Chip,
 } from '@mui/material';
-import { Edit as EditIcon } from '@mui/icons-material';
-import type { 
-  FormData, 
-  Section, 
-  DateRange, 
-  Question,
-  ValidationError 
-} from '../types/index';
-import { formConfig } from '../config/formConfig';
+import {
+  Edit as EditIcon,
+  NavigateBefore as BackIcon,
+  Send as SendIcon,
+} from '@mui/icons-material';
+import type { FormData } from '../types/form';
 
 interface ReviewPageProps {
   formData: FormData;
@@ -25,141 +23,70 @@ interface ReviewPageProps {
   skippedSections: string[];
 }
 
-const ReviewPage: React.FC<ReviewPageProps> = ({ 
-  formData, 
-  onEdit, 
+const ReviewPage: React.FC<ReviewPageProps> = ({
+  formData,
+  onEdit,
   onSubmit,
   skippedSections
 }) => {
-  const formatDate = (date: Date | string | null) => {
-    if (!date) return '';
-    const d = new Date(date);
-    return d.toLocaleDateString('en-US', {
-      month: '2-digit',
-      day: '2-digit',
-      year: '2-digit'
-    });
-  };
-
-  const formatAnswer = (value: any, type: string, questionId: string) => {
-    if (!value) return 'Not provided';
-    
-    if (type === 'date-range') {
-      const dateRange = formData.date_range as DateRange;
-      const start = formatDate(dateRange?.start);
-      const end = formatDate(dateRange?.end);
-      return `${start} to ${end}`;
-    }
-    
-    if (Array.isArray(value)) {
-      return value.join(', ');
-    }
-    
-    return value.toString();
-  };
-
-  const isQuestionIncomplete = (question: Question, sectionId: string) => {
-    if (!question.required) return false;
-    
-    if (question.type === 'date-range') {
-      const dateRange = formData.date_range as DateRange | undefined;
-      return !dateRange?.start || !dateRange?.end;
-    }
-    
-    const value = formData[question.id];
-    return value === undefined || value === null || value === '';
-  };
-
-  const renderSectionReview = (section: Section) => {
-    const isSkipped = skippedSections.includes(section.id);
-    const incompleteQuestions = section.questions
-      .filter(q => isQuestionIncomplete(q, section.id));
-
-    // Only show section as skipped if it has incomplete required questions
-    const hasIncompleteRequiredQuestions = incompleteQuestions.some(q => q.required);
-
-    return (
-      <Paper 
-        key={section.id} 
-        sx={{ 
-          p: 3, 
-          mb: 2,
-          border: hasIncompleteRequiredQuestions ? '1px solid' : 'none',
-          borderColor: 'warning.main',
-          bgcolor: hasIncompleteRequiredQuestions ? 'warning.lighter' : 'background.paper'
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-          <Typography variant="h6" color={hasIncompleteRequiredQuestions ? 'warning.dark' : 'text.primary'}>
-            {section.title}
-          </Typography>
-          <Button
-            startIcon={<EditIcon />}
-            onClick={() => onEdit(section.id)}
-            variant="outlined"
-            color={hasIncompleteRequiredQuestions ? 'warning' : 'primary'}
-            size="small"
-          >
-            Edit
-          </Button>
+  const renderSectionSummary = () => {
+    return Object.entries(formData).map(([sectionId, data]) => (
+      <Paper key={sectionId} sx={{ p: 3, mb: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+          <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="h6">
+              {sectionId}
+            </Typography>
+            {skippedSections.includes(sectionId) && (
+              <Chip 
+                label="Partially Completed" 
+                color="warning" 
+                size="small"
+              />
+            )}
+          </Box>
+          <IconButton onClick={() => onEdit(sectionId)} size="small">
+            <EditIcon />
+          </IconButton>
         </Box>
-        {hasIncompleteRequiredQuestions && (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            This section has incomplete required fields
-          </Alert>
-        )}
-        <Divider sx={{ mb: 2 }} />
-        {section.questions.map(question => {
-          const isIncomplete = isQuestionIncomplete(question, section.id);
-          return (
-            <Box key={question.id} sx={{ mb: 2 }}>
-              <Typography 
-                variant="subtitle2" 
-                color={isIncomplete && question.required ? 'warning.dark' : 'text.secondary'}
-              >
-                {question.label}
-                {question.required && ' *'}
-              </Typography>
-              <Typography>
-                {formatAnswer(
-                  question.type === 'date-range' ? formData.date_range : formData[question.id],
-                  question.type,
-                  question.id
-                )}
-              </Typography>
-            </Box>
-          );
-        })}
+        
+        <pre>{JSON.stringify(data, null, 2)}</pre>
       </Paper>
-    );
+    ));
   };
-
-  const hasIncompleteFields = skippedSections.length > 0;
 
   return (
-    <Box sx={{ maxWidth: 800, mx: 'auto', py: 4 }}>
-      <Typography variant="h4" sx={{ mb: 4 }}>Review Your Responses</Typography>
-      
-      {hasIncompleteFields && (
-        <Alert severity="warning" sx={{ mb: 4 }}>
-          Please complete all required fields before submitting
-        </Alert>
-      )}
-      
-      {Object.values(formConfig.sections).map(renderSectionReview)}
-      
-      <Stack direction="row" spacing={2} sx={{ mt: 4 }}>
-        <Button
-          variant="contained"
-          color="primary"
-          size="large"
-          onClick={onSubmit}
-          disabled={hasIncompleteFields}
-        >
-          Submit Application
-        </Button>
+    <Container maxWidth="lg" sx={{ py: 4 }}>
+      <Stack spacing={4}>
+        <Box>
+          <Typography variant="h4" gutterBottom>
+            Review Your Application
+          </Typography>
+          <Typography color="text.secondary">
+            Please review your application before submitting. You can edit any section if needed.
+          </Typography>
+        </Box>
+
+        {renderSectionSummary()}
+
+        <Stack direction="row" spacing={2} sx={{ mt: 4 }}>
+          <Button
+            variant="outlined"
+            startIcon={<BackIcon />}
+            onClick={() => onEdit('getting_started')}
+          >
+            Back to Edit
+          </Button>
+          <Button
+            variant="contained"
+            endIcon={<SendIcon />}
+            onClick={onSubmit}
+          >
+            Submit Application
+          </Button>
+        </Stack>
       </Stack>
-    </Box>
+    </Container>
   );
 };
 

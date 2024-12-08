@@ -14,8 +14,8 @@ import {
   ListItemIcon,
   ListItemText,
   Drawer,
-  Chip,
   Stack,
+  Tooltip,
 } from '@mui/material';
 import {
   HelpOutline as HelpIcon,
@@ -33,21 +33,34 @@ import type {
   FormData, 
   DateRange, 
   FormConfig,
-  WizardState,
-  Question,
   Section,
-} from '../types/index';
+  Question
+} from '../types/form';
+import type {
+  WizardState,
+  Phase,
+  DataCollection
+} from '../types/wizard';
 import { 
+  formConfig, 
+  generateFormConfig 
+} from '../config/formConfig';
+import { 
+  getModulesForSelection,
+  calculateTotalTime 
+} from '../config/wizardConfig';
+import {
   FormSection,
   HelpPanel,
   SectionHeader,
 } from './';
-import { useFormValidation } from '../hooks';
-import { formConfig, generateFormConfig } from '../config/formConfig';
 import ReviewPage from './ReviewPage';
 import LandingPage from './LandingPage';
 import AIWizard from './AIWizard';
+import ScrollIndicator from './ScrollIndicator';
 import { moduleQuestions } from '../config/moduleQuestions';
+import { useFormValidation } from '../hooks/useFormValidation';
+
 
 // Add RootLayout component at the top of the file
 const RootLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -87,9 +100,12 @@ const DynamicForm: React.FC = () => {
   const [phaseSelectOpen, setPhaseSelectOpen] = useState(false);
   const [dataTypeSelectOpen, setDataTypeSelectOpen] = useState(false);
   const [tempSelection, setTempSelection] = useState<{
-    phase?: 'discovery' | 'pilot' | 'validation';
-    dataCollection?: 'prospective' | 'retrospective';
-  }>({});
+    phase?: Phase;
+    dataCollection?: DataCollection;
+  }>({
+    phase: wizardState.phase,
+    dataCollection: wizardState.dataCollection
+  });
 
   const { 
     errors, 
@@ -100,7 +116,15 @@ const DynamicForm: React.FC = () => {
 
   // Add currentFormConfig state
   const [currentFormConfig, setCurrentFormConfig] = useState<FormConfig>(() => 
-    generateFormConfig({})
+    generateFormConfig({
+      estimatedTime: 0,
+      phase: undefined,
+      dataCollection: undefined,
+      selectedModules: {
+        core: [],
+        additional: []
+      }
+    })
   );
 
   // Track skipped required fields for the current section
@@ -446,13 +470,60 @@ const DynamicForm: React.FC = () => {
 
   // Add these handler functions
   const handlePhaseClick = () => {
-    setTempSelection({ phase: wizardState.phase });
     setPhaseSelectOpen(true);
   };
 
   const handleDataTypeClick = () => {
-    setTempSelection({ dataCollection: wizardState.dataCollection });
     setDataTypeSelectOpen(true);
+  };
+
+  // Add new handlers for when selections are actually changed
+  const handlePhaseChange = (phase: Phase) => {
+    const newModules = getModulesForSelection(phase, wizardState.dataCollection);
+    
+    setWizardState(prev => ({
+      ...prev,
+      phase,
+      selectedModules: newModules,
+      estimatedTime: calculateTotalTime({
+        phase,
+        dataCollection: prev.dataCollection,
+        selectedModules: newModules
+      })
+    }));
+    
+    // Update form config with new modules
+    const newConfig = generateFormConfig({
+      ...wizardState,
+      phase,
+      selectedModules: newModules
+    });
+    setCurrentFormConfig(newConfig);
+    
+    setPhaseSelectOpen(false);
+  };
+
+  const handleDataTypeChange = (dataCollection: DataCollection) => {
+    setTempSelection(prev => ({ ...prev, dataCollection }));
+    
+    // Use the shared helper function
+    const newModules = getModulesForSelection(wizardState.phase, dataCollection);
+    
+    setWizardState(prev => ({
+      ...prev,
+      dataCollection,
+      selectedModules: newModules
+    }));
+    
+    // Update form config with new modules
+    const newConfig = generateFormConfig({
+      ...wizardState,
+      dataCollection,
+      selectedModules: newModules
+    });
+    setCurrentFormConfig(newConfig);
+    
+    setDataTypeSelectOpen(false);
   };
 
   // Add proper type checking for wizard steps
@@ -460,50 +531,55 @@ const DynamicForm: React.FC = () => {
     return sectionId === 'ai_wizard';
   };
 
-  // Update getBreadcrumbSections to use proper Section interface
+  // Update getBreadcrumbSections to match Section interface from form.ts
   const getBreadcrumbSections = () => {
-    // AI Wizard is always first
     const sections: Record<string, Section> = {
       ai_wizard: {
         id: 'ai_wizard',
         title: 'AI Wizard',
         description: 'Configure study type',
         questions: [],
-        isWizardStep: true
+        isWizardStep: true,
+        dynamicFields: false
       },
       getting_started: {
         id: 'getting_started',
         title: 'Getting Started',
         description: 'Initial study information',
-        questions: moduleQuestions.getting_started,
-        isWizardStep: false
+        questions: moduleQuestions.getting_started || [],
+        isWizardStep: false,
+        dynamicFields: false
       }
     };
 
     // Add module sections from wizard selections
-    wizardState.selectedModules?.core.forEach((moduleTitle) => {
-      const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
-      sections[sectionId] = {
-        id: sectionId,
-        title: moduleTitle,
-        description: `Complete ${moduleTitle} information`,
-        questions: [], // Questions would be defined in formConfig
-        dynamicFields: false,
-        isWizardStep: false
-      };
-    });
+    if (wizardState.selectedModules) {
+      // Add core modules
+      wizardState.selectedModules.core.forEach((moduleTitle) => {
+        const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
+        sections[sectionId] = {
+          id: sectionId,
+          title: moduleTitle,
+          description: `Complete ${moduleTitle} information`,
+          questions: moduleQuestions[sectionId] || [],
+          isWizardStep: false,
+          dynamicFields: false
+        };
+      });
 
-    wizardState.selectedModules?.additional.forEach((moduleTitle) => {
-      const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
-      sections[sectionId] = {
-        id: sectionId,
-        title: moduleTitle,
-        description: `Complete ${moduleTitle} information`,
-        questions: [], // Questions would be defined in formConfig
-        dynamicFields: false,
-        isWizardStep: false
-      };
-    });
+      // Add additional modules
+      wizardState.selectedModules.additional.forEach((moduleTitle) => {
+        const sectionId = moduleTitle.toLowerCase().replace(/\s+/g, '_');
+        sections[sectionId] = {
+          id: sectionId,
+          title: moduleTitle,
+          description: `Complete ${moduleTitle} information`,
+          questions: moduleQuestions[sectionId] || [],
+          isWizardStep: false,
+          dynamicFields: false
+        };
+      });
+    }
 
     return sections;
   };
@@ -550,56 +626,6 @@ const DynamicForm: React.FC = () => {
       />
     );
   };
-
-  // Add renderStudyTypeChip function
-  const renderStudyTypeChip = () => (
-    <Box sx={{ 
-      position: 'absolute', 
-      top: -40,
-      right: 48,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 1,
-      zIndex: 1
-    }}>
-      {wizardState.phase && (
-        <Chip
-          label={`${wizardState.phase.charAt(0).toUpperCase()}${wizardState.phase.slice(1)} Phase`}
-          color="primary"
-          variant="outlined"
-          onClick={handlePhaseClick}
-          onDelete={handlePhaseClick}
-          deleteIcon={<EditIcon />}
-          sx={{ 
-            '& .MuiChip-deleteIcon': {
-              color: 'primary.main',
-              '&:hover': {
-                color: 'primary.dark'
-              }
-            }
-          }}
-        />
-      )}
-      {wizardState.dataCollection && (
-        <Chip
-          label={`${wizardState.dataCollection.charAt(0).toUpperCase()}${wizardState.dataCollection.slice(1)} Data`}
-          color="primary"
-          variant="outlined"
-          onClick={handleDataTypeClick}
-          onDelete={handleDataTypeClick}
-          deleteIcon={<EditIcon />}
-          sx={{ 
-            '& .MuiChip-deleteIcon': {
-              color: 'primary.main',
-              '&:hover': {
-                color: 'primary.dark'
-              }
-            }
-          }}
-        />
-      )}
-    </Box>
-  );
 
   // Update render conditions to use RootLayout
   if (showLandingPage) {
@@ -715,20 +741,10 @@ const DynamicForm: React.FC = () => {
             alignItems: 'center', 
             justifyContent: 'space-between'
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="h3" gutterBottom color="primary.dark" sx={{ fontWeight: 700 }}>
-                IRB Application Builder
-              </Typography>
-              <IconButton 
-                onClick={() => setHelpOpen(true)}
-                color="primary"
-                sx={{ mt: -1 }}
-              >
-                <HelpIcon />
-              </IconButton>
-            </Box>
+            <Typography variant="h3" gutterBottom color="primary.dark" sx={{ fontWeight: 700 }}>
+              IRB Application Builder
+            </Typography>
             
-            {/* Add Timer */}
             <Box sx={{ 
               display: 'flex', 
               alignItems: 'center', 
@@ -745,9 +761,71 @@ const DynamicForm: React.FC = () => {
               </Typography>
             </Box>
           </Box>
-          <Typography variant="h6" color="text.secondary">
-            Complete each section to build your comprehensive IRB application
-          </Typography>
+
+          {/* Dynamic subtitle with dropdown-style selections */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+            <Typography variant="subtitle1" color="text.secondary">
+              Building your IRB application for a
+            </Typography>
+            <Box 
+              onClick={handlePhaseClick}
+              sx={{ 
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                color: 'primary.main',
+                borderBottom: '2px dotted',
+                borderColor: 'primary.main',
+                '&:hover': {
+                  color: 'primary.dark',
+                  borderColor: 'primary.dark'
+                }
+              }}
+            >
+              <Typography variant="subtitle1">
+                {wizardState.phase?.charAt(0).toUpperCase()}{wizardState.phase?.slice(1)} Phase
+              </Typography>
+              <EditIcon sx={{ fontSize: 14, ml: 0.5 }} />
+            </Box>
+            <Typography variant="subtitle1" color="text.secondary">
+              study using
+            </Typography>
+            <Box 
+              onClick={handleDataTypeClick}
+              sx={{ 
+                display: 'inline-flex',
+                alignItems: 'center',
+                cursor: 'pointer',
+                color: 'primary.main',
+                borderBottom: '2px dotted',
+                borderColor: 'primary.main',
+                '&:hover': {
+                  color: 'primary.dark',
+                  borderColor: 'primary.dark'
+                }
+              }}
+            >
+              <Typography variant="subtitle1">
+                {wizardState.dataCollection?.charAt(0).toUpperCase()}{wizardState.dataCollection?.slice(1)} Data
+              </Typography>
+              <EditIcon sx={{ fontSize: 14, ml: 0.5 }} />
+            </Box>
+            <Tooltip 
+              title="Changing these selections will only show/hide relevant form sections. Your existing data will be preserved."
+              arrow
+              placement="right"
+            >
+              <HelpIcon 
+                sx={{ 
+                  fontSize: 14, 
+                  ml: 1, 
+                  color: 'text.secondary',
+                  verticalAlign: 'super',
+                  cursor: 'help'
+                }} 
+              />
+            </Tooltip>
+          </Box>
         </Container>
       </Box>
 
@@ -759,25 +837,13 @@ const DynamicForm: React.FC = () => {
           bgcolor: 'background.paper',
         }}
       >
-        <Container maxWidth="lg" sx={{ position: 'relative', py: 2 }}>
-          {renderStudyTypeChip()}
+        <Container maxWidth="lg" sx={{ py: 2 }}>
           <SectionHeader
             sections={Object.values(getBreadcrumbSections())}
-            completedSections={['ai_wizard', ...completedSections]} // Always include ai_wizard as completed
-            skippedSections={skippedSections}
+            completedSections={['ai_wizard', ...completedSections]}
             activeSection={activeSection}
             onSectionClick={handleSectionChange}
-            wizardSteps={['ai_wizard']}
-            showAllSections={true}  // Always show all sections after wizard
             disabledSections={disabledSections}
-            navigationHistory={navigationHistory}
-            onWizardStepClick={() => {
-              setPhaseSelectOpen(true);
-            }}
-            onStartOver={() => {
-              handleClearForm();
-              setShowWizard(true);
-            }}
           />
         </Container>
       </Box>
@@ -931,19 +997,7 @@ const DynamicForm: React.FC = () => {
                 <Button
                   key={phase}
                   variant={tempSelection.phase === phase ? 'contained' : 'outlined'}
-                  onClick={() => {
-                    setTempSelection(prev => ({ ...prev, phase: phase as 'discovery' | 'pilot' | 'validation' }));
-                    setWizardState(prev => ({
-                      ...prev,
-                      phase: phase as 'discovery' | 'pilot' | 'validation'
-                    }));
-                    const newConfig = generateFormConfig({
-                      ...wizardState,
-                      phase: phase as 'discovery' | 'pilot' | 'validation'
-                    });
-                    setCurrentFormConfig(newConfig);
-                    setPhaseSelectOpen(false);
-                  }}
+                  onClick={() => handlePhaseChange(phase as Phase)}
                   sx={{ textTransform: 'capitalize' }}
                 >
                   {phase} Phase
@@ -962,19 +1016,7 @@ const DynamicForm: React.FC = () => {
                 <Button
                   key={type}
                   variant={tempSelection.dataCollection === type ? 'contained' : 'outlined'}
-                  onClick={() => {
-                    setTempSelection(prev => ({ ...prev, dataCollection: type as 'prospective' | 'retrospective' }));
-                    setWizardState(prev => ({
-                      ...prev,
-                      dataCollection: type as 'prospective' | 'retrospective'
-                    }));
-                    const newConfig = generateFormConfig({
-                      ...wizardState,
-                      dataCollection: type as 'prospective' | 'retrospective'
-                    });
-                    setCurrentFormConfig(newConfig);
-                    setDataTypeSelectOpen(false);
-                  }}
+                  onClick={() => handleDataTypeChange(type as DataCollection)}
                   sx={{ textTransform: 'capitalize' }}
                 >
                   {type} Data Collection
@@ -1021,6 +1063,9 @@ const DynamicForm: React.FC = () => {
           </DialogActions>
         </Dialog>
       </>
+
+      {/* Add ScrollIndicator here, outside of the main content area */}
+      <ScrollIndicator />
     </Box>
   );
 };

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Slider from 'react-slick';
 import "slick-carousel/slick/slick.css";
 import "slick-carousel/slick/slick-theme.css";
@@ -6,33 +6,15 @@ import {
   Box, 
   Typography,
   IconButton,
-  Stepper,
-  Step,
-  StepLabel,
-  StepConnector,
-  stepConnectorClasses,
-  styled
+  Tooltip
 } from '@mui/material';
-import { styled as muiStyled } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
-import type { Section } from '../types';
-
-interface SectionHeaderProps {
-  sections: Section[];
-  completedSections: string[];
-  skippedSections: string[];
-  activeSection: string;
-  onSectionClick: (sectionId: string) => void;
-  disabledSections?: string[];
-  wizardSteps?: string[];
-  showAllSections?: boolean;
-  onWizardStepClick?: () => void;
-  onStartOver?: () => void;
-  navigationHistory?: string[];
-}
+import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
+import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
+import type { SectionHeaderProps } from '../types';
 
 // Add a function to check if all items fit
 const shouldShowArrows = (totalItems: number) => {
@@ -100,42 +82,44 @@ const PrevArrow = (props: any) => {
   );
 };
 
-// Create custom connector styling
-const CustomConnector = styled(StepConnector)(({ theme }) => ({
-  [`&.${stepConnectorClasses.root}`]: {
-    left: 'calc(-50% + 20px)',
-    right: 'calc(50% + 20px)',
-  },
-  [`&.${stepConnectorClasses.line}`]: {
-    borderColor: theme.palette.grey[300],
-    borderTopWidth: 2,
-    borderRadius: 1,
-  },
-  [`&.${stepConnectorClasses.active}`]: {
-    [`& .${stepConnectorClasses.line}`]: {
-      borderColor: theme.palette.primary.main,
-    },
-  },
-  [`&.${stepConnectorClasses.completed}`]: {
-    [`& .${stepConnectorClasses.line}`]: {
-      borderColor: theme.palette.success.main,
-    },
-  },
-}));
+// Add CarouselCounter component
+const CarouselCounter = ({ direction, count }: { direction: 'left' | 'right', count: number }) => {
+  if (count === 0) return null;
+
+  return (
+    <Box
+      sx={{
+        position: 'absolute',
+        [direction]: -60,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.5,
+        color: 'primary.main',
+        fontSize: '0.875rem',
+        fontWeight: 500
+      }}
+    >
+      {direction === 'left' && <KeyboardArrowLeftIcon fontSize="small" />}
+      <Typography variant="caption" color="primary">
+        +{count}
+      </Typography>
+      {direction === 'right' && <KeyboardArrowRightIcon fontSize="small" />}
+    </Box>
+  );
+};
 
 const SectionHeader: React.FC<SectionHeaderProps> = ({
   sections,
   completedSections,
-  skippedSections,
   activeSection,
   onSectionClick,
   disabledSections = [],
-  wizardSteps = [],
-  showAllSections = false,
-  onWizardStepClick,
-  onStartOver,
-  navigationHistory = [],
 }) => {
+  const [hiddenLeft, setHiddenLeft] = useState(0);
+  const [hiddenRight, setHiddenRight] = useState(0);
+
   const sliderSettings = {
     dots: false,
     infinite: false,
@@ -173,7 +157,7 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
         }
       }
     ],
-    beforeChange: (current: number, next: number) => {
+    beforeChange: () => {
       const totalSlides = sections.length;
       const slidesToShow = window.innerWidth > 1024 ? 5 : window.innerWidth > 600 ? 3 : 1;
       
@@ -181,36 +165,27 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
         return false;
       }
     },
-    afterChange: () => {
-      // Reset track position
-      const track = document.querySelector('.slick-track') as HTMLElement;
-      if (track) {
-        requestAnimationFrame(() => {
-          track.style.transform = track.style.transform.replace(
-            /translate3d\((.*?)\)/,
-            (_, offset) => {
-              const currentOffset = parseInt(offset);
-              if (currentOffset > 0) {
-                return 'translate3d(0px, 0px, 0px)';
-              }
-              return `translate3d(${offset}, 0px, 0px)`;
-            }
-          );
-        });
-      }
+    afterChange: (currentSlide: number) => {
+      const totalSlides = sections.length;
+      const slidesToShow = window.innerWidth > 1024 ? 5 : window.innerWidth > 600 ? 3 : 1;
+      
+      setHiddenLeft(currentSlide);
+      setHiddenRight(Math.max(0, totalSlides - currentSlide - slidesToShow));
     },
     centerPadding: '40px',  // Add padding for connectors
     className: 'section-slider',
   };
 
   return (
-    <Box sx={{ mx: 5 }}>
+    <Box sx={{ mx: 5, position: 'relative' }}>
+      <CarouselCounter direction="left" count={hiddenLeft} />
       <Slider {...sliderSettings}>
         {sections.map((section, index) => {
           const isCompleted = completedSections.includes(section.id);
           const isActive = section.id === activeSection;
           const isDisabled = disabledSections.includes(section.id);
           const isFirst = index === 0;
+          const isAIWizard = section.id === 'ai_wizard';
 
           return (
             <Box key={section.id} sx={{ px: 2 }}>
@@ -230,54 +205,66 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
                   display: isFirst ? 'none' : 'block'
                 }
               }}>
-                <Box sx={{ position: 'relative', zIndex: 1 }}>
-                  <Box
-                    onClick={() => !isDisabled && onSectionClick(section.id)}
-                    sx={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '50%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      bgcolor: isActive ? 'primary.main' : 'background.paper',
-                      border: 1,
-                      borderColor: isCompleted ? 'success.main' : 
-                                 isActive ? 'primary.main' : 
-                                 'grey.300',
-                      cursor: isDisabled ? 'not-allowed' : 'pointer',
-                      opacity: isDisabled ? 0.5 : 1,
-                      transition: 'transform 0.2s',
-                      mx: 'auto',
-                      mb: 1,
-                      '&:hover': {
-                        transform: isDisabled ? 'none' : 'scale(1.1)'
-                      }
-                    }}
-                  >
-                    {isCompleted ? (
-                      <CheckCircleIcon color="success" />
-                    ) : (
-                      <RadioButtonUncheckedIcon color={isActive ? "primary" : "action"} />
-                    )}
+                <Tooltip 
+                  title={isAIWizard ? 
+                    "You can modify your study phase and data collection type in the header above" : 
+                    ""}
+                  arrow
+                  placement="top"
+                >
+                  <Box sx={{ position: 'relative', zIndex: 1 }}>
+                    <Box
+                      onClick={() => !isAIWizard && !isDisabled && onSectionClick(section.id)}
+                      sx={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        bgcolor: isActive ? 'primary.main' : 'background.paper',
+                        border: 1,
+                        borderColor: isCompleted ? 'success.main' : 
+                                   isActive ? 'primary.main' : 
+                                   'grey.300',
+                        cursor: isAIWizard ? 'help' : isDisabled ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.2s',
+                        mx: 'auto',
+                        mb: 1,
+                        '&:hover': {
+                          borderColor: isAIWizard ? 'primary.main' : 
+                                     isDisabled ? 'grey.300' : 
+                                     'primary.main',
+                          transform: isAIWizard ? 'none' : isDisabled ? 'none' : 'scale(1.1)',
+                          bgcolor: isAIWizard ? 'background.paper' : undefined
+                        }
+                      }}
+                    >
+                      {isCompleted ? (
+                        <CheckCircleIcon color={isCompleted ? "success" : "action"} />
+                      ) : (
+                        <RadioButtonUncheckedIcon color={isActive ? "primary" : "action"} />
+                      )}
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      align="center"
+                      sx={{
+                        color: 'text.primary',  // Keep text black
+                        fontWeight: isActive ? 600 : 400,
+                        mt: 1
+                      }}
+                    >
+                      {section.title}
+                    </Typography>
                   </Box>
-                  <Typography
-                    variant="body2"
-                    align="center"
-                    sx={{
-                      color: isActive ? 'primary.main' : 'text.primary',
-                      fontWeight: isActive ? 600 : 400,
-                      mt: 1
-                    }}
-                  >
-                    {section.title}
-                  </Typography>
-                </Box>
+                </Tooltip>
               </Box>
             </Box>
           );
         })}
       </Slider>
+      <CarouselCounter direction="right" count={hiddenRight} />
     </Box>
   );
 };

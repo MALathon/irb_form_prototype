@@ -13,204 +13,78 @@ import {
   ListItemText,
 } from '@mui/material';
 import {
-  Science as ScienceIcon,
-  Timeline as TimelineIcon,
-  Psychology as PsychologyIcon,
   Timer as TimerIcon,
-  HelpOutline as HelpOutlineIcon,
-  CheckCircle as CheckCircleIcon,
   Refresh as RefreshIcon,
   NavigateNext as NavigateNextIcon,
-  AddCircle as AddCircleIcon,
   ArrowBack as BackIcon,
   CheckCircle as BaseModuleIcon,
   AddCircle as NewModuleIcon,
+  CheckCircle as CheckCircleIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SectionHeader } from './';
+import ScrollIndicator from './ScrollIndicator';
+import { 
+  PHASES,
+  DATA_COLLECTION_TYPES,
+  phaseModules,
+  dataCollectionModules,
+  getModulesForSelection,
+  calculateTotalTime,
+  wizardStepTimeEstimates
+} from '../config/wizardConfig';
+import { wizardSteps, directPathSections, guidedPathSections } from '../config/wizardStepsConfig';
 
-interface WizardStep {
-  id: string;
-  question: string;
-  explanation: string;
-  options: {
-    label: string;
-    description: string;
-    timeImpact?: number;
-    value: string;
-    icon?: React.ReactNode;
-    leadTo?: string;
-  }[];
-}
+import type {
+  Phase,
+  DataCollection,
+  WizardState,
+  WizardStepOption,
+  WizardStep
+} from '../types/wizard';
 
-interface WizardState {
-  phase?: 'discovery' | 'pilot' | 'validation';
-  dataCollection?: 'prospective' | 'retrospective';
-  estimatedTime: number;
-  selectedModules?: {
-    core: string[];
-    additional: string[];
-  };
-}
+import { isPhase, isDataCollection } from '../types/wizard';
+import type { Section } from '../types/form';
 
 interface AIWizardProps {
   onComplete: (state: WizardState) => void;
   initialState?: WizardState;
 }
 
-interface Section {
-  id: string;
-  title: string;
-  description: string;
-  questions: any[];
+// Update the interface to handle readonly arrays
+interface ModuleListConfig {
+  core: string[];
+  additional: string[];
 }
 
-const wizardSteps: WizardStep[] = [
-  {
-    id: 'selection_method',
-    question: "How would you like to get started?",
-    explanation: "Don't worry - you can always change your selections later. We're here to help you build the right IRB application for your AI research.",
-    options: [
-      {
-        label: "Guide me through it",
-        description: "Answer a few simple questions and we'll help determine the best approach for your research. Perfect if you're not sure which phase fits best.",
-        timeImpact: 5,
-        value: 'guided',
-        icon: <HelpOutlineIcon />
-      },
-      {
-        label: "I know what I need",
-        description: "Already familiar with AI research phases? You can directly select your phase and data collection approach. You can always modify these later.",
-        timeImpact: 2,
-        value: 'direct',
-        icon: <CheckCircleIcon />
-      }
-    ]
-  },
-  {
-    id: 'ai_readiness',
-    question: "Where are you in your AI development journey?",
-    explanation: "Let's figure out which phase best matches your current stage. Remember, every great AI project starts somewhere!",
-    options: [
-      {
-        label: "Just getting started",
-        description: "You're at the beginning of your AI journey - planning to collect data and develop your initial model. This is an exciting first step!",
-        value: 'not_started',
-        leadTo: 'discovery',
-        timeImpact: 30,
-        icon: <ScienceIcon />
-      },
-      {
-        label: "Have a model that needs testing",
-        description: "You've developed your AI model and now need to validate its performance. We'll help you plan the right testing approach.",
-        value: 'developed',
-        leadTo: 'pilot',
-        timeImpact: 45,
-        icon: <TimelineIcon />
-      },
-      {
-        label: "Ready for clinical implementation",
-        description: "Your model is tested and you're ready to implement it in clinical practice. We'll help ensure a smooth transition.",
-        value: 'tested',
-        leadTo: 'validation',
-        timeImpact: 60,
-        icon: <PsychologyIcon />
-      }
-    ]
-  },
-  {
-    id: 'data_plans',
-    question: "Tell us about your data plans",
-    explanation: "Different data approaches have different requirements - we'll help you navigate them. You can always refine these details in the form.",
-    options: [
-      {
-        label: "I have existing data",
-        description: "You'll be working with previously collected data. We'll help you document its sources and quality appropriately.",
-        value: 'existing',
-        leadTo: 'retrospective',
-        timeImpact: 15
-      },
-      {
-        label: "I need to collect new data",
-        description: "You'll be gathering new data as part of your study. We'll help you plan your collection process.",
-        value: 'new',
-        leadTo: 'prospective',
-        timeImpact: 30
-      }
-    ]
-  }
-];
-
-const renderModuleList = (modules: { core: string[], additional: string[] }) => (
-  <Box>
-    {modules.core.length > 0 && (
-      <Box sx={{ mb: 3 }}>
-        <Typography 
-          variant="subtitle2" 
-          color="text.secondary" 
-          gutterBottom
-          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-        >
-          <BaseModuleIcon fontSize="small" color="success" />
-          Core Modules:
-        </Typography>
-        <List dense>
-          {modules.core.map((module, index) => (
-            <ListItem key={index}>
-              <ListItemIcon>
-                <CheckCircleIcon color="success" fontSize="small" />
-              </ListItemIcon>
-              <ListItemText primary={module} />
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-    )}
-    
-    {modules.additional.length > 0 && (
-      <Box>
-        <Typography 
-          variant="subtitle2" 
-          color="primary.main" 
-          gutterBottom
-          sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-        >
-          <NewModuleIcon fontSize="small" color="primary" />
-          Additional Modules:
-        </Typography>
-        <List dense>
-          {modules.additional.map((module, index) => (
-            <ListItem key={index}>
-              <ListItemIcon>
-                <AddCircleIcon color="primary" fontSize="small" />
-              </ListItemIcon>
-              <ListItemText 
-                primary={module}
-                primaryTypographyProps={{
-                  color: 'primary.main',
-                  fontWeight: 500
-                }}
-              />
-            </ListItem>
-          ))}
-        </List>
-      </Box>
-    )}
-  </Box>
-);
-
-// Add these type definitions at the top
-type Phase = 'discovery' | 'pilot' | 'validation';
-type DataCollection = 'prospective' | 'retrospective';
+const renderModuleList = (moduleConfig: ModuleListConfig) => {
+  const allModules = [...moduleConfig.core, ...moduleConfig.additional];
+  return (
+    <List>
+      {allModules.map((module, index) => (
+        <ListItem key={index}>
+          <ListItemIcon>
+            {index < moduleConfig.core.length ? 
+              <BaseModuleIcon color="success" /> 
+              : 
+              <NewModuleIcon color="info" />
+            }
+          </ListItemIcon>
+          <ListItemText primary={module} />
+        </ListItem>
+      ))}
+    </List>
+  );
+};
 
 interface PhaseConfirmationProps {
-  phase: Phase;  // Update the type here
-  dataCollection: DataCollection;  // Update the type here
+  phase: Phase;
+  dataCollection: DataCollection;
   estimatedTime: number;
   onConfirm: () => void;
   onReset: () => void;
   onBack: () => void;
-  renderModuleList: (modules: { core: string[], additional: string[] }) => React.ReactNode;
+  renderModuleList: (moduleConfig: ModuleListConfig) => React.ReactNode;
 }
 
 const PhaseConfirmation: React.FC<PhaseConfirmationProps> = ({
@@ -368,155 +242,6 @@ const PhaseConfirmation: React.FC<PhaseConfirmationProps> = ({
   );
 };
 
-interface ModuleConfig {
-  title: string;
-  modules: {
-    core: string[];
-    additional: string[];
-  };
-  explanation: string;
-}
-
-interface DataCollectionModules {
-  retrospective: ModuleConfig;
-  prospective: ModuleConfig;
-}
-
-interface PhaseModules {
-  discovery: ModuleConfig;
-  pilot: ModuleConfig;
-  validation: ModuleConfig;
-}
-
-// Define core modules specific to phase
-const PHASE_CORE_MODULES = [
-  "Protocol Documentation",
-  "Ethics Review",
-  "Safety Assessment",
-  "Model Documentation"
-];
-
-// Define core modules specific to data collection
-const DATA_CORE_MODULES = [
-  "Data Security Plan",
-  "Data Quality Assessment",
-  "Data Source Documentation"
-];
-
-// Update phase modules with phase-specific core modules
-const phaseModules: PhaseModules = {
-  discovery: {
-    title: "Discovery Phase Selected",
-    modules: {
-      core: PHASE_CORE_MODULES,
-      additional: []  // No additional modules for discovery (baseline)
-    },
-    explanation: "Focus on initial model development and basic validation."
-  },
-  pilot: {
-    title: "Pilot Phase Selected",
-    modules: {
-      core: PHASE_CORE_MODULES,
-      additional: [
-        "Performance Validation",
-        "Error Analysis",
-        "Clinical Integration Planning"
-      ]
-    },
-    explanation: "Emphasis on thorough testing and validation in a controlled environment."
-  },
-  validation: {
-    title: "Validation Phase Selected",
-    modules: {
-      core: PHASE_CORE_MODULES,
-      additional: [
-        "Performance Validation",
-        "Error Analysis",
-        "Clinical Integration Planning",
-        "Production Deployment",
-        "Monitoring Systems",
-        "Clinical Workflow Integration"
-      ]
-    },
-    explanation: "Focus on real-world implementation and monitoring."
-  }
-};
-
-// Update data collection modules with data-specific core modules
-const dataCollectionModules: DataCollectionModules = {
-  retrospective: {
-    title: "Retrospective Data Collection Selected",
-    modules: {
-      core: DATA_CORE_MODULES,
-      additional: []  // No additional modules for retrospective (baseline)
-    },
-    explanation: "Retrospective analysis focuses on existing data quality and bias assessment."
-  },
-  prospective: {
-    title: "Prospective Data Collection Selected",
-    modules: {
-      core: DATA_CORE_MODULES,
-      additional: [
-        "Patient Recruitment Strategy",
-        "Timeline Planning",
-        "Quality Control Measures",
-        "Participant Follow-up Plan"
-      ]
-    },
-    explanation: "Prospective data collection requires additional planning for future data gathering."
-  }
-};
-
-// Update direct path sections
-const directPathSections: Section[] = [
-  {
-    id: 'getting_started',
-    title: 'Getting Started',
-    description: 'Choose how to proceed',
-    questions: []
-  },
-  {
-    id: 'configure_study',
-    title: 'Configure Study',
-    description: 'Select phase and data collection',
-    questions: []
-  },
-  {
-    id: 'review',
-    title: 'Review',
-    description: 'Review and confirm selections',
-    questions: []
-  }
-];
-
-// Update guided path sections to match the correct flow
-const guidedPathSections: Section[] = [
-  {
-    id: 'getting_started',
-    title: 'Getting Started',
-    description: 'Choose how to proceed',
-    questions: []
-  },
-  {
-    id: 'ai_readiness',
-    title: 'AI Readiness',
-    description: 'Assess your AI maturity',
-    questions: []
-  },
-  {
-    id: 'data_plans',
-    title: 'Data Plans',
-    description: 'Define your data approach',
-    questions: []
-  },
-  {
-    id: 'review',
-    title: 'Review',
-    description: 'Review selections',
-    questions: []
-  }
-];
-
 const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [path, setPath] = useState<'guided' | 'direct' | null>(null);
@@ -542,7 +267,9 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
       id: 'selection_method',
       title: 'Getting Started',
       description: 'Choose how to proceed',
-      questions: []
+      questions: [],
+      isWizardStep: true,
+      dynamicFields: false
     }
   ]);
 
@@ -551,18 +278,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
 
   // Add useEffect to handle path changes
   useEffect(() => {
-    if (path === 'direct') {
-      setSections(directPathSections);
-    } else if (path === 'guided') {
-      setSections(guidedPathSections);
-    } else {
-      setSections([{
-        id: 'getting_started',
-        title: 'Getting Started',
-        description: 'Choose how to proceed',
-        questions: []
-      }]);
-    }
+    setSections(path === 'direct' ? directPathSections : guidedPathSections);
   }, [path]);
 
   // Add useEffect to handle state initialization
@@ -576,110 +292,48 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     setSelectedOption(value);
     
     if (currentStep === 0) {
-      // Update sections immediately based on selected path
-      if (value === 'direct') {
-        setSections([
-          {
-            id: 'getting_started',
-            title: 'Getting Started',
-            description: 'Choose how to proceed',
-            questions: []
-          },
-          {
-            id: 'configure_study',
-            title: 'Configure Study',
-            description: 'Select phase and data collection',
-            questions: []
-          },
-          {
-            id: 'review',
-            title: 'Review',
-            description: 'Review selections',
-            questions: []
-          }
-        ]);
-      } else {
-        setSections([
-          {
-            id: 'getting_started',
-            title: 'Getting Started',
-            description: 'Choose how to proceed',
-            questions: []
-          },
-          {
-            id: 'ai_readiness',
-            title: 'AI Readiness',
-            description: 'Assess your AI maturity',
-            questions: []
-          },
-          {
-            id: 'data_plans',
-            title: 'Data Plans',
-            description: 'Define your data approach',
-            questions: []
-          },
-          {
-            id: 'review',
-            title: 'Review',
-            description: 'Review selections',
-            questions: []
-          }
-        ]);
-      }
+      // Use selection_method time estimates
+      const selectionTimeImpact = wizardStepTimeEstimates.selection_method[value as keyof typeof wizardStepTimeEstimates.selection_method] || 0;
+      setState((prev: WizardState): WizardState => ({
+        ...prev,
+        estimatedTime: selectionTimeImpact
+      }));
       return;
     }
     
     if (path === 'direct') {
       if (currentStep === 1) {
-        const phaseTimeMap = {
-          discovery: 30,
-          pilot: 45,
-          validation: 60
-        };
-        const dataTimeMap = {
-          prospective: 30,
-          retrospective: 15
-        };
-        
-        if (value === directSelections.phase || value === directSelections.dataCollection) {
-          // Calculate total time from scratch based on current selections
-          const phaseTime = value === directSelections.phase ? 
-            phaseTimeMap[value as Phase] : 
-            (state.phase ? phaseTimeMap[state.phase] : 0);
-          
-          const dataTime = value === directSelections.dataCollection ? 
-            dataTimeMap[value as DataCollection] : 
-            (state.dataCollection ? dataTimeMap[state.dataCollection] : 0);
-
-          setState(prev => ({
+        if (isPhase(value)) {
+          // Use ai_readiness time estimates for phases
+          const phaseTimeImpact = wizardStepTimeEstimates.ai_readiness[value as keyof typeof wizardStepTimeEstimates.ai_readiness] || 0;
+          setState((prev: WizardState): WizardState => ({
             ...prev,
-            phase: value === directSelections.phase ? value as Phase : prev.phase,
-            dataCollection: value === directSelections.dataCollection ? value as DataCollection : prev.dataCollection,
-            estimatedTime: phaseTime + dataTime
+            phase: value,
+            estimatedTime: phaseTimeImpact + prev.estimatedTime
           }));
         }
       }
     } else {
-      // Guided path logic
       if (currentStep === 1) {
         const selectedOption = wizardSteps[1].options.find(opt => opt.value === value);
-        if (selectedOption?.leadTo) {
-          // Reset time when changing phase
-          setState({
+        if (selectedOption?.leadTo && isPhase(selectedOption.leadTo)) {
+          // Use ai_readiness time estimates
+          const phaseTimeImpact = wizardStepTimeEstimates.ai_readiness[value as keyof typeof wizardStepTimeEstimates.ai_readiness] || 0;
+          setState((): WizardState => ({
             phase: selectedOption.leadTo as Phase,
             dataCollection: undefined,
-            estimatedTime: selectedOption.timeImpact || 0
-          });
+            estimatedTime: phaseTimeImpact
+          }));
         }
       } else if (currentStep === 2) {
         const selectedOption = wizardSteps[2].options.find(opt => opt.value === value);
-        if (selectedOption?.leadTo) {
-          // Add data collection time to existing phase time
-          setState(prev => ({
+        if (selectedOption?.leadTo && isDataCollection(selectedOption.leadTo)) {
+          // Use data_plans time estimates
+          const dataTimeImpact = wizardStepTimeEstimates.data_plans[value as keyof typeof wizardStepTimeEstimates.data_plans] || 0;
+          setState((prev: WizardState): WizardState => ({
             ...prev,
             dataCollection: selectedOption.leadTo as DataCollection,
-            estimatedTime: (prev.phase ? wizardSteps[1].options.find(opt => opt.leadTo === prev.phase)?.timeImpact || 0 : 0) + 
-                          (selectedOption.timeImpact || 0)
+            estimatedTime: prev.estimatedTime + dataTimeImpact
           }));
         }
       }
@@ -763,10 +417,19 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
       }
     } else if (path === 'direct') {
       if (currentStep === 1 && directSelections.phase && directSelections.dataCollection) {
+        const selectedModules = getModulesForSelection(
+          directSelections.phase, 
+          directSelections.dataCollection
+        );
+        
         setState({
           phase: directSelections.phase,
           dataCollection: directSelections.dataCollection,
-          estimatedTime: calculateEstimatedTime(directSelections.phase, directSelections.dataCollection)
+          estimatedTime: calculateTotalTime({
+            phase: directSelections.phase,
+            dataCollection: directSelections.dataCollection,
+            selectedModules
+          })
         });
         setCurrentStep(2);
         setCompletedSections(['getting_started', 'configure_study']);
@@ -807,21 +470,6 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     }
   };
 
-  // Update calculateEstimatedTime to handle type checking
-  const calculateEstimatedTime = (phase: Phase, dataCollection: DataCollection) => {
-    const phaseTimeMap: Record<Phase, number> = {
-      discovery: 30,
-      pilot: 45,
-      validation: 60
-    };
-    const dataTimeMap: Record<DataCollection, number> = {
-      prospective: 30,
-      retrospective: 15
-    };
-    
-    return phaseTimeMap[phase] + dataTimeMap[dataCollection];
-  };
-
   // Add this function to generate all possible sections based on current selections
   const getAllPossibleSections = () => {
     const sections = [
@@ -829,7 +477,8 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
         id: 'initial_information',
         title: 'Getting Started',
         description: 'Help us understand your study better',
-        questions: []
+        questions: [],
+        isWizardStep: true
       },
       {
         id: 'study_phase',
@@ -955,17 +604,17 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                                section.id.includes('testing_') || 
                                section.id.includes('clinical_');
         const isWrongPhase = isPhaseSpecific && (
-          (section.id.includes('model_development') && currentPhase !== 'discovery') ||
-          (section.id.includes('testing_') && currentPhase !== 'pilot') ||
-          (section.id.includes('clinical_') && currentPhase !== 'validation')
+          (section.id.includes('model_development') && currentPhase !== PHASES.discovery) ||
+          (section.id.includes('testing_') && currentPhase !== PHASES.pilot) ||
+          (section.id.includes('clinical_') && currentPhase !== PHASES.validation)
         );
         
         // Data collection specific conditions
         const isDataSpecific = section.id.includes('data_collection_') || 
                               section.id.includes('data_source');
         const isWrongDataType = isDataSpecific && (
-          (section.id.includes('data_collection_') && currentDataCollection !== 'prospective') ||
-          (section.id.includes('data_source') && currentDataCollection !== 'retrospective')
+          (section.id.includes('data_collection_') && currentDataCollection !== DATA_COLLECTION_TYPES.prospective) ||
+          (section.id.includes('data_source') && currentDataCollection !== DATA_COLLECTION_TYPES.retrospective)
         );
         
         // Common sections condition
@@ -1024,48 +673,51 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
       <Box>
         <Typography variant="h6" gutterBottom>Study Phase</Typography>
         <Stack spacing={2}>
-          {[
-            { value: 'discovery' as Phase, timeImpact: 30 },
-            { value: 'pilot' as Phase, timeImpact: 45 },
-            { value: 'validation' as Phase, timeImpact: 60 }
-          ].map(({ value: phase, timeImpact }) => (
-            <Paper
-              key={phase}
-              sx={{
-                p: 2,
-                cursor: 'pointer',
-                bgcolor: directSelections.phase === phase ? 'primary.lighter' : 'background.paper',
-                borderWidth: 2,
-                borderStyle: 'solid',
-                borderColor: directSelections.phase === phase ? 'primary.main' : 'transparent',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  bgcolor: 'primary.lighter',
-                }
-              }}
-              onClick={() => {
-                setDirectSelections(prev => ({ ...prev, phase }));
-                setState(prev => ({
-                  ...prev,
-                  phase,
-                  estimatedTime: timeImpact + (prev.dataCollection === 'prospective' ? 30 : 
-                                             prev.dataCollection === 'retrospective' ? 15 : 0)
-                }));
-              }}
-            >
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
-                  {phase} Phase
-                </Typography>
-                <Chip
-                  size="small"
-                  label={`+${timeImpact} min`}
-                  color={directSelections.phase === phase ? "primary" : "default"}
-                  variant={directSelections.phase === phase ? "filled" : "outlined"}
-                />
-              </Stack>
-            </Paper>
-          ))}
+          {Object.values(PHASES).map(phase => {
+            if (!isPhase(phase)) return null;
+            const moduleConfig = phaseModules[phase];
+            return (
+              <Paper
+                key={phase}
+                sx={{
+                  p: 2,
+                  cursor: 'pointer',
+                  bgcolor: directSelections.phase === phase ? 'primary.lighter' : 'background.paper',
+                  borderWidth: 2,
+                  borderStyle: 'solid',
+                  borderColor: directSelections.phase === phase ? 'primary.main' : 'transparent',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    bgcolor: 'primary.lighter',
+                  }
+                }}
+                onClick={() => {
+                  setDirectSelections(prev => ({ ...prev, phase }));
+                  setState((prev: WizardState): WizardState => ({
+                    ...prev,
+                    phase,
+                    estimatedTime: calculateTotalTime({
+                      phase,
+                      dataCollection: prev.dataCollection,
+                      selectedModules: getModulesForSelection(phase, prev.dataCollection)
+                    })
+                  }));
+                }}
+              >
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
+                    {phase} Phase
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={`+${moduleConfig.timeEstimate} min`}
+                    color={directSelections.phase === phase ? "primary" : "default"}
+                    variant={directSelections.phase === phase ? "filled" : "outlined"}
+                  />
+                </Stack>
+              </Paper>
+            );
+          })}
         </Stack>
       </Box>
 
@@ -1073,70 +725,83 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
       <Box>
         <Typography variant="h6" gutterBottom>Data Collection</Typography>
         <Stack spacing={2}>
-          {[
-            { value: 'prospective' as DataCollection, timeImpact: 30 },
-            { value: 'retrospective' as DataCollection, timeImpact: 15 }
-          ].map(({ value: type, timeImpact }) => (
-            <Paper
-              key={type}
-              sx={{
-                p: 2,
-                cursor: 'pointer',
-                bgcolor: directSelections.dataCollection === type ? 'primary.lighter' : 'background.paper',
-                borderWidth: 2,
-                borderStyle: 'solid',
-                borderColor: directSelections.dataCollection === type ? 'primary.main' : 'transparent',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  bgcolor: 'primary.lighter',
-                }
-              }}
-              onClick={() => {
-                setDirectSelections(prev => ({ ...prev, dataCollection: type }));
-                setState(prev => ({
-                  ...prev,
-                  dataCollection: type,
-                  estimatedTime: timeImpact + (prev.phase === 'discovery' ? 30 : 
-                                             prev.phase === 'pilot' ? 45 : 
-                                             prev.phase === 'validation' ? 60 : 0)
-                }));
-              }}
-            >
-              <Stack direction="row" justifyContent="space-between" alignItems="center">
-                <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
-                  {type} Data
-                </Typography>
-                <Chip
-                  size="small"
-                  label={`+${timeImpact} min`}
-                  color={directSelections.dataCollection === type ? "primary" : "default"}
-                  variant={directSelections.dataCollection === type ? "filled" : "outlined"}
-                />
-              </Stack>
-            </Paper>
-          ))}
+          {Object.values(DATA_COLLECTION_TYPES).map(type => {
+            if (!isDataCollection(type)) return null;
+            const moduleConfig = dataCollectionModules[type];
+            return (
+              <Paper
+                key={type}
+                sx={{
+                  p: 2,
+                  cursor: 'pointer',
+                  bgcolor: directSelections.dataCollection === type ? 'primary.lighter' : 'background.paper',
+                  borderWidth: 2,
+                  borderStyle: 'solid',
+                  borderColor: directSelections.dataCollection === type ? 'primary.main' : 'transparent',
+                  '&:hover': {
+                    borderColor: 'primary.main',
+                    bgcolor: 'primary.lighter',
+                  }
+                }}
+                onClick={() => {
+                  setDirectSelections(prev => ({ ...prev, dataCollection: type }));
+                  setState((prev: WizardState): WizardState => ({
+                    ...prev,
+                    dataCollection: type,
+                    estimatedTime: calculateTotalTime({
+                      phase: prev.phase,
+                      dataCollection: type,
+                      selectedModules: getModulesForSelection(prev.phase, type)
+                    })
+                  }));
+                }}
+              >
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
+                    {type} Data
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={`+${moduleConfig.timeEstimate} min`}
+                    color={directSelections.dataCollection === type ? "primary" : "default"}
+                    variant={directSelections.dataCollection === type ? "filled" : "outlined"}
+                  />
+                </Stack>
+              </Paper>
+            );
+          })}
         </Stack>
       </Box>
     </Stack>
   );
 
   const handleWizardComplete = () => {
-    // Get the modules based on selections
-    const selectedPhaseModules = state.phase ? phaseModules[state.phase].modules : { core: [], additional: [] };
-    const selectedDataModules = state.dataCollection ? dataCollectionModules[state.dataCollection].modules : { core: [], additional: [] };
-
-    // Combine all selected modules
-    const selectedModules = {
-      core: [...selectedPhaseModules.core, ...selectedDataModules.core],
-      additional: [...selectedPhaseModules.additional, ...selectedDataModules.additional]
-    };
-
+    if (!state.phase || !state.dataCollection) return;
+    
+    const selectedModules = getModulesForSelection(state.phase, state.dataCollection);
+    const estimatedTime = calculateTotalTime({
+      phase: state.phase,
+      dataCollection: state.dataCollection,
+      selectedModules
+    });
+    
     onComplete({
       phase: state.phase,
       dataCollection: state.dataCollection,
-      estimatedTime: state.estimatedTime,
+      estimatedTime,
       selectedModules
     });
+  };
+
+  const renderOptionIcon = (option: WizardStepOption) => {
+    if (!option.Icon) return null;
+    const IconComponent = option.Icon;
+    return <IconComponent />;
+  };
+
+  // Add explicit typing for currentStep
+  const getCurrentStep = (): WizardStep | undefined => {
+    return wizardSteps[currentStep];
   };
 
   return (
@@ -1192,7 +857,6 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
           <SectionHeader
             sections={sections}
             completedSections={completedSections}
-            skippedSections={[]}
             activeSection={currentSectionId}
             onSectionClick={(sectionId) => {
               const stepIndex = sections.findIndex(s => s.id === sectionId);
@@ -1200,8 +864,6 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                 setCurrentStep(stepIndex);
               }
             }}
-            wizardSteps={[]}
-            showAllSections={true}
             disabledSections={getDisabledSections()}
           />
         </Container>
@@ -1273,21 +935,22 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
             <Stack spacing={3}>
               <Box>
                 <Typography variant="h4" gutterBottom>
-                  {wizardSteps[currentStep].question}
+                  {getCurrentStep()?.question}
                 </Typography>
                 <Typography variant="body1" color="text.secondary">
-                  {wizardSteps[currentStep].explanation}
+                  {getCurrentStep()?.explanation}
                 </Typography>
               </Box>
 
               {currentStep === 0 ? (
                 // Getting Started - Full Width Layout
                 <Stack spacing={2}>
-                  {wizardSteps[currentStep].options.map((option) => (
+                  {wizardSteps[currentStep].options.map((option, index) => (
                     <motion.div
                       key={option.value}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
                     >
                       <Paper
                         sx={{
@@ -1309,14 +972,9 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                         onClick={() => handleOptionSelect(option.value)}
                       >
                         <Stack direction="row" spacing={2} alignItems="center">
-                          {option.icon && (
-                            <Box sx={{ 
-                              color: selectedOption === option.value ? 'primary.main' : 'text.secondary',
-                              transition: 'color 0.2s ease-in-out'
-                            }}>
-                              {option.icon}
-                            </Box>
-                          )}
+                          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                            {renderOptionIcon(option)}
+                          </Box>
                           <Box sx={{ flex: 1 }}>
                             <Typography 
                               variant="h6"
@@ -1348,11 +1006,12 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                     transition: 'all 0.3s ease-in-out'
                   }}>
                     <Stack spacing={2}>
-                      {wizardSteps[currentStep].options.map((option) => (
+                      {wizardSteps[currentStep].options.map((option, index) => (
                         <motion.div
                           key={option.value}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
                         >
                           <Paper
                             sx={{
@@ -1374,14 +1033,9 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                             onClick={() => handleOptionSelect(option.value)}
                           >
                             <Stack direction="row" spacing={2} alignItems="center">
-                              {option.icon && (
-                                <Box sx={{ 
-                                  color: selectedOption === option.value ? 'primary.main' : 'text.secondary',
-                                  transition: 'color 0.2s ease-in-out'
-                                }}>
-                                  {option.icon}
-                                </Box>
-                              )}
+                              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                                {renderOptionIcon(option)}
+                              </Box>
                               <Box sx={{ flex: 1 }}>
                                 <Typography 
                                   variant="h6"
@@ -1453,6 +1107,9 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
           )}
         </Stack>
       </Container>
+
+      {/* Add ScrollIndicator */}
+      <ScrollIndicator />
     </Box>
   );
 };

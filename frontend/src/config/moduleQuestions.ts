@@ -1,5 +1,5 @@
-import type { Question } from '../types';
-import { STUDY_ROLES } from './formConfig';
+import type { Question } from '../types/form';
+import { STUDY_ROLES } from './studyRoles';
 
 export const moduleQuestions: Record<string, Question[]> = {
   // Add Getting Started section

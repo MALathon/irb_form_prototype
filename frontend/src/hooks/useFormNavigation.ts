@@ -3,12 +3,13 @@ import { formConfig } from '../config/formConfig';
 import type { 
   FormData, 
   Section, 
-  SectionDependency, 
-  DateRange,
-  WizardState,
-  Phase,
-  DataCollection
-} from '../types/index';
+  SectionDependency 
+} from '../types/form';
+import type { 
+  WizardState, 
+  Phase, 
+  DataCollection 
+} from '../types/wizard';
 
 export const useFormNavigation = (
   formData: FormData,
