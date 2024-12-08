@@ -15,15 +15,17 @@ import {
   Radio,
   RadioGroup,
   FormControlLabel,
+  Chip,
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import type { DateRange, Question, FormSectionProps } from '../types';
+import type { DateRange, Question, FormSectionProps, TeamMember } from '../types';
 import type { SxProps, Theme } from '@mui/material/styles';
 import ChipSelect from './ChipSelect';
 import { FileUpload, type UploadedFile } from './FileUpload';
+import { TeamManagement } from './TeamManagement';
 
 const getDropdownValue = (value: unknown): string => {
   if (typeof value === 'string') return value;
@@ -37,7 +39,8 @@ const FormSection: React.FC<FormSectionProps> = ({
   onChange,
   errors = {},
   skippedFields = [],
-  onHelpClick
+  onHelpClick,
+  helpIcon
 }) => {
   const [infoOpen, setInfoOpen] = useState(false);
 
@@ -173,18 +176,40 @@ const FormSection: React.FC<FormSectionProps> = ({
         return (
           <FormControl fullWidth error={!!error}>
             <RadioGroup
-              value={data[question.id] || ''}
+              value={data[question.id] || 'no'}
               onChange={(e) => onChange(question.id, e.target.value)}
             >
               {question.options?.map((option) => {
                 const value = typeof option === 'string' ? option : option.value;
                 const label = typeof option === 'string' ? option : option.label;
+                const disabled = typeof option === 'string' ? false : option.disabled;
+                const isComingSoon = typeof option === 'string' ? false : option.isComingSoon;
+                
                 return (
                   <FormControlLabel
                     key={value}
                     value={value}
                     control={<Radio />}
-                    label={label}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {label}
+                        {isComingSoon && (
+                          <Chip
+                            label="Coming Soon"
+                            size="small"
+                            color="info"
+                            sx={{ ml: 1 }}
+                          />
+                        )}
+                      </Box>
+                    }
+                    disabled={disabled}
+                    sx={{
+                      opacity: disabled ? 0.6 : 1,
+                      '&:hover': {
+                        cursor: disabled ? 'not-allowed' : 'pointer'
+                      }
+                    }}
                   />
                 );
               })}
@@ -243,6 +268,14 @@ const FormSection: React.FC<FormSectionProps> = ({
           />
         );
 
+      case 'team_list':
+        return (
+          <TeamManagement
+            value={(data[question.id] as TeamMember[]) || []}
+            onChange={(members) => onChange(question.id, members)}
+          />
+        );
+
       default:
         return (
           <Typography color="error">
@@ -275,15 +308,15 @@ const FormSection: React.FC<FormSectionProps> = ({
         gap: 1
       }}>
         <Typography variant="h5" component="h1">{section.title}</Typography>
-        <Tooltip title="Help">
+        {helpIcon && onHelpClick && (
           <IconButton 
             onClick={onHelpClick}
             size="small"
-            sx={{ color: 'primary.main' }}
+            sx={{ mt: -0.5 }}
           >
-            <HelpOutlineIcon fontSize="small" />
+            {helpIcon}
           </IconButton>
-        </Tooltip>
+        )}
       </Box>
 
       <Typography variant="body1" sx={{ mb: 4 }}>{section.description}</Typography>
