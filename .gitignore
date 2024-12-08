@@ -1,0 +1,12 @@
+venv/
+.venv/
+env/
+.env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+public/
+**/public/
+node_modules/
+**/node_modules/
