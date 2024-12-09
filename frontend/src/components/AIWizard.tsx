@@ -11,6 +11,7 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
+  SvgIconProps,
 } from '@mui/material';
 import {
   Timer as TimerIcon,
@@ -20,6 +21,12 @@ import {
   CheckCircle as BaseModuleIcon,
   AddCircle as NewModuleIcon,
   CheckCircle as CheckCircleIcon,
+  Science as ScienceIcon,
+  Psychology as PsychologyIcon,
+  Timeline as TimelineIcon,
+  Storage as StorageIcon,
+  Addchart as NewDataIcon,
+  PushPin as PinIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SectionHeader } from './';
@@ -31,7 +38,7 @@ import {
   dataCollectionModules,
   getModulesForSelection,
   calculateTotalTime,
-  wizardStepTimeEstimates
+  TIME_ESTIMATES
 } from '../config/wizardConfig';
 import { wizardSteps, directPathSections, guidedPathSections } from '../config/wizardStepsConfig';
 
@@ -140,7 +147,19 @@ const PhaseConfirmation: React.FC<PhaseConfirmationProps> = ({
         mb: 4
       }}>
         {/* Phase Info */}
-        <Paper sx={{ p: 3, height: 'fit-content' }}>
+        <Paper sx={{ 
+          p: 3, 
+          height: 'fit-content',
+          position: 'relative'  // Add for pin positioning
+        }}>
+          <PinIcon sx={{ 
+            position: 'absolute',
+            top: -10,
+            left: '50%',
+            transform: 'translateX(-50%) rotate(-45deg)',
+            color: 'primary.main',
+            fontSize: 28
+          }} />
           <Typography variant="overline" color="primary.main">
             Study Phase
           </Typography>
@@ -160,7 +179,19 @@ const PhaseConfirmation: React.FC<PhaseConfirmationProps> = ({
         </Paper>
 
         {/* Data Collection Info */}
-        <Paper sx={{ p: 3, height: 'fit-content' }}>
+        <Paper sx={{ 
+          p: 3, 
+          height: 'fit-content',
+          position: 'relative'  // Add for pin positioning
+        }}>
+          <PinIcon sx={{ 
+            position: 'absolute',
+            top: -10,
+            left: '50%',
+            transform: 'translateX(-50%) rotate(-45deg)',
+            color: 'primary.main',
+            fontSize: 28
+          }} />
           <Typography variant="overline" color="primary.main">
             Data Collection
           </Typography>
@@ -180,7 +211,19 @@ const PhaseConfirmation: React.FC<PhaseConfirmationProps> = ({
         </Paper>
 
         {/* Time Estimate & Actions */}
-        <Paper sx={{ p: 3, height: 'fit-content' }}>
+        <Paper sx={{ 
+          p: 3, 
+          height: 'fit-content',
+          position: 'relative'  // Add for pin positioning
+        }}>
+          <PinIcon sx={{ 
+            position: 'absolute',
+            top: -10,
+            left: '50%',
+            transform: 'translateX(-50%) rotate(-45deg)',
+            color: 'primary.main',
+            fontSize: 28
+          }} />
           <Typography variant="overline" color="primary.main">
             Estimated Time
           </Typography>
@@ -265,7 +308,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
   const [sections, setSections] = useState<Section[]>([
     {
       id: 'selection_method',
-      title: 'Getting Started',
+      title: '90',
       description: 'Choose how to proceed',
       questions: [],
       isWizardStep: true,
@@ -273,13 +316,27 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     }
   ]);
 
+  // Update useEffect to only set sections when path is selected
+  useEffect(() => {
+    if (path === 'direct') {
+      setSections(directPathSections);
+    } else if (path === 'guided') {
+      setSections(guidedPathSections);
+    } else {
+      // If no path selected, only show Getting Started
+      setSections([{
+        id: 'selection_method',
+        title: 'Getting Started',
+        description: 'Choose how to proceed',
+        questions: [],
+        isWizardStep: true,
+        dynamicFields: false
+      }]);
+    }
+  }, [path]);
+
   // Add completedSections state
   const [completedSections, setCompletedSections] = useState<string[]>([]);
-
-  // Add useEffect to handle path changes
-  useEffect(() => {
-    setSections(path === 'direct' ? directPathSections : guidedPathSections);
-  }, [path]);
 
   // Add useEffect to handle state initialization
   useEffect(() => {
@@ -288,53 +345,90 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     }
   }, [initialState]);
 
+  // Add state to track initial selection
+  const [initialSelection, setInitialSelection] = useState<'direct' | 'guided' | null>(null);
+
+  // Add state to track guided path selections
+  const [guidedSelections, setGuidedSelections] = useState<{
+    aiReadiness: string;
+    dataPlans: string;
+  }>({
+    aiReadiness: '',
+    dataPlans: ''
+  });
+
   const handleOptionSelect = (value: string) => {
     setSelectedOption(value);
     
     if (currentStep === 0) {
-      // Use selection_method time estimates
-      const selectionTimeImpact = wizardStepTimeEstimates.selection_method[value as keyof typeof wizardStepTimeEstimates.selection_method] || 0;
+      if (value === 'direct' || value === 'guided') {
+        setInitialSelection(value);
+        setPath(value);
+        setSections(value === 'direct' ? directPathSections : guidedPathSections);
+      }
       setState((prev: WizardState): WizardState => ({
         ...prev,
-        estimatedTime: selectionTimeImpact
+        estimatedTime: 0
       }));
       return;
     }
     
     if (path === 'direct') {
-      if (currentStep === 1) {
-        if (isPhase(value)) {
-          // Use ai_readiness time estimates for phases
-          const phaseTimeImpact = wizardStepTimeEstimates.ai_readiness[value as keyof typeof wizardStepTimeEstimates.ai_readiness] || 0;
-          setState((prev: WizardState): WizardState => ({
-            ...prev,
-            phase: value,
-            estimatedTime: phaseTimeImpact + prev.estimatedTime
-          }));
-        }
+      if (isPhase(value)) {
+        const dataCollectionType = directSelections.dataCollection;
+        
+        setDirectSelections(prev => ({ ...prev, phase: value }));
+        setState((prev: WizardState): WizardState => ({
+          ...prev,
+          phase: value,
+          // Only use phase and data collection times
+          estimatedTime: TIME_ESTIMATES.PHASES[value] + 
+                        (dataCollectionType ? TIME_ESTIMATES.DATA_COLLECTION[dataCollectionType] : 0)
+        }));
+      } else if (isDataCollection(value)) {
+        const phaseType = directSelections.phase;
+        
+        setDirectSelections(prev => ({ ...prev, dataCollection: value }));
+        setState((prev: WizardState): WizardState => ({
+          ...prev,
+          dataCollection: value,
+          // Only use phase and data collection times
+          estimatedTime: (phaseType ? TIME_ESTIMATES.PHASES[phaseType] : 0) + 
+                        TIME_ESTIMATES.DATA_COLLECTION[value]
+        }));
       }
     } else {
+      // Guided path logic
       if (currentStep === 1) {
-        const selectedOption = wizardSteps[1].options.find(opt => opt.value === value);
-        if (selectedOption?.leadTo && isPhase(selectedOption.leadTo)) {
-          // Use ai_readiness time estimates
-          const phaseTimeImpact = wizardStepTimeEstimates.ai_readiness[value as keyof typeof wizardStepTimeEstimates.ai_readiness] || 0;
-          setState((): WizardState => ({
-            phase: selectedOption.leadTo as Phase,
-            dataCollection: undefined,
-            estimatedTime: phaseTimeImpact
+        const aiReadinessOption = wizardSteps[1].options.find(opt => opt.value === value);
+        if (aiReadinessOption?.leadTo && isPhase(aiReadinessOption.leadTo)) {
+          const phase = aiReadinessOption.leadTo as Phase;
+          setGuidedSelections(prev => ({ ...prev, aiReadiness: value }));
+          setState(prev => ({
+            ...prev,
+            phase,
+            estimatedTime: TIME_ESTIMATES.PHASES[phase]
           }));
+          // Update completed sections immediately
+          setCompletedSections(['selection_method', 'ai_readiness']);
         }
       } else if (currentStep === 2) {
-        const selectedOption = wizardSteps[2].options.find(opt => opt.value === value);
-        if (selectedOption?.leadTo && isDataCollection(selectedOption.leadTo)) {
-          // Use data_plans time estimates
-          const dataTimeImpact = wizardStepTimeEstimates.data_plans[value as keyof typeof wizardStepTimeEstimates.data_plans] || 0;
-          setState((prev: WizardState): WizardState => ({
+        const dataPlansOption = wizardSteps[2].options.find(opt => opt.value === value);
+        if (dataPlansOption?.leadTo && isDataCollection(dataPlansOption.leadTo)) {
+          const dataCollection = dataPlansOption.leadTo as DataCollection;
+          setGuidedSelections(prev => ({ ...prev, dataPlans: value }));
+          setState(prev => ({
             ...prev,
-            dataCollection: selectedOption.leadTo as DataCollection,
-            estimatedTime: prev.estimatedTime + dataTimeImpact
+            dataCollection,
+            estimatedTime: calculateTotalTime({
+              phase: prev.phase,
+              dataCollection
+            })
           }));
+          // Update completed sections immediately
+          if (state.phase) {
+            setCompletedSections(['selection_method', 'ai_readiness', 'data_plans']);
+          }
         }
       }
     }
@@ -395,6 +489,9 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     if (!selectedOption && currentStep === 0) return;
     
     if (currentStep === 0) {
+      // Mark Getting Started as complete with correct ID
+      setCompletedSections(['selection_method']);
+      
       // Reset state when starting new path
       setState({
         phase: undefined,
@@ -407,45 +504,45 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
         setCurrentStep(1);
         setSelectedOption('');
         setSections(directPathSections);
-        setCompletedSections(['getting_started']);
       } else {
         setPath('guided');
         setCurrentStep(1);
         setSelectedOption('');
         setSections(guidedPathSections);
-        setCompletedSections(['getting_started']);
       }
     } else if (path === 'direct') {
       if (currentStep === 1 && directSelections.phase && directSelections.dataCollection) {
-        const selectedModules = getModulesForSelection(
-          directSelections.phase, 
-          directSelections.dataCollection
-        );
-        
         setState({
           phase: directSelections.phase,
           dataCollection: directSelections.dataCollection,
           estimatedTime: calculateTotalTime({
             phase: directSelections.phase,
-            dataCollection: directSelections.dataCollection,
-            selectedModules
+            dataCollection: directSelections.dataCollection
           })
         });
         setCurrentStep(2);
-        setCompletedSections(['getting_started', 'configure_study']);
+        setCompletedSections(['selection_method', 'configure_study']);
       } else if (currentStep === 2) {
+        // Ensure final time is correct before completing
+        setState(prev => ({
+          ...prev,
+          estimatedTime: calculateTotalTime({
+            phase: prev.phase,
+            dataCollection: prev.dataCollection
+          })
+        }));
         onComplete(state);
       }
     } else {
       // Guided path logic
       if (currentStep === 1) {
         const aiReadinessOption = wizardSteps[1].options.find(opt => opt.value === selectedOption);
-        if (aiReadinessOption?.leadTo) {
-          // Set only phase time
+        if (aiReadinessOption?.leadTo && isPhase(aiReadinessOption.leadTo)) {
+          const phase = aiReadinessOption.leadTo as Phase;
           setState({
-            phase: aiReadinessOption.leadTo as Phase,
+            phase,
             dataCollection: undefined,
-            estimatedTime: aiReadinessOption.timeImpact || 0
+            estimatedTime: TIME_ESTIMATES.PHASES[phase]
           });
           setCurrentStep(2);
           setSelectedOption('');
@@ -453,18 +550,28 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
         }
       } else if (currentStep === 2) {
         const dataPlansOption = wizardSteps[2].options.find(opt => opt.value === selectedOption);
-        if (dataPlansOption?.leadTo) {
-          // Add data collection time to phase time
+        if (dataPlansOption?.leadTo && isDataCollection(dataPlansOption.leadTo)) {
+          const dataCollection = dataPlansOption.leadTo as DataCollection;
           setState(prev => ({
             ...prev,
-            dataCollection: dataPlansOption.leadTo as DataCollection,
-            estimatedTime: (prev.phase ? wizardSteps[1].options.find(opt => opt.leadTo === prev.phase)?.timeImpact || 0 : 0) + 
-                          (dataPlansOption.timeImpact || 0)
+            dataCollection,
+            estimatedTime: calculateTotalTime({
+              phase: prev.phase,
+              dataCollection
+            })
           }));
           setCurrentStep(3);
           setCompletedSections(prev => [...prev, 'data_plans']);
         }
       } else if (currentStep === 3) {
+        // Ensure final time is correct before completing
+        setState(prev => ({
+          ...prev,
+          estimatedTime: calculateTotalTime({
+            phase: prev.phase,
+            dataCollection: prev.dataCollection
+          })
+        }));
         onComplete(state);
       }
     }
@@ -630,38 +737,82 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
   };
 
   const renderSelectionSummary = () => {
-    // For data collection steps, only show data collection modules
-    if (currentStep === 2 || currentStep === 4) {
-      return state.dataCollection && (
-        <Stack spacing={3} sx={{ mt: 4 }}>
-          <Paper sx={{ p: 3, bgcolor: 'background.paper' }}>
-            <Typography variant="h6" gutterBottom>
-              {dataCollectionModules[state.dataCollection].title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              {dataCollectionModules[state.dataCollection].explanation}
-            </Typography>
-            {renderModuleList(dataCollectionModules[state.dataCollection].modules)}
-          </Paper>
-        </Stack>
-      );
+    // For direct path, show modules based on selections
+    if (path === 'direct' && currentStep === 1) {
+      // Show phase modules if phase is selected
+      if (directSelections.phase) {
+        return (
+          <Stack spacing={3} sx={{ mt: 4 }}>
+            <Paper sx={{ p: 3, bgcolor: 'background.paper' }}>
+              <Typography variant="h6" gutterBottom>
+                {phaseModules[directSelections.phase].title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {phaseModules[directSelections.phase].explanation}
+              </Typography>
+              {renderModuleList(phaseModules[directSelections.phase].modules)}
+            </Paper>
+          </Stack>
+        );
+      }
+      // Show data collection modules if data collection is selected
+      if (directSelections.dataCollection) {
+        return (
+          <Stack spacing={3} sx={{ mt: 4 }}>
+            <Paper sx={{ p: 3, bgcolor: 'background.paper' }}>
+              <Typography variant="h6" gutterBottom>
+                {dataCollectionModules[directSelections.dataCollection].title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {dataCollectionModules[directSelections.dataCollection].explanation}
+              </Typography>
+              {renderModuleList(dataCollectionModules[directSelections.dataCollection].modules)}
+            </Paper>
+          </Stack>
+        );
+      }
     }
 
-    // For phase selection, show phase modules
-    if (state.phase) {
-      return (
-        <Stack spacing={3} sx={{ mt: 4 }}>
-          <Paper sx={{ p: 3, bgcolor: 'background.paper' }}>
-            <Typography variant="h6" gutterBottom>
-              {phaseModules[state.phase].title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              {phaseModules[state.phase].explanation}
-            </Typography>
-            {renderModuleList(phaseModules[state.phase].modules)}
-          </Paper>
-        </Stack>
-      );
+    // For guided path data plans step
+    if (path === 'guided' && currentStep === 2) {
+      const dataPlansOption = wizardSteps[2].options.find(opt => opt.value === selectedOption);
+      if (dataPlansOption?.leadTo && isDataCollection(dataPlansOption.leadTo)) {
+        const dataType = dataPlansOption.leadTo;
+        return (
+          <Stack spacing={3} sx={{ mt: 4 }}>
+            <Paper sx={{ p: 3, bgcolor: 'background.paper' }}>
+              <Typography variant="h6" gutterBottom>
+                {dataCollectionModules[dataType].title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {dataCollectionModules[dataType].explanation}
+              </Typography>
+              {renderModuleList(dataCollectionModules[dataType].modules)}
+            </Paper>
+          </Stack>
+        );
+      }
+    }
+
+    // For guided path AI readiness step
+    if (path === 'guided' && currentStep === 1) {
+      const aiReadinessOption = wizardSteps[1].options.find(opt => opt.value === selectedOption);
+      if (aiReadinessOption?.leadTo && isPhase(aiReadinessOption.leadTo)) {
+        const phase = aiReadinessOption.leadTo;
+        return (
+          <Stack spacing={3} sx={{ mt: 4 }}>
+            <Paper sx={{ p: 3, bgcolor: 'background.paper' }}>
+              <Typography variant="h6" gutterBottom>
+                {phaseModules[phase].title}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                {phaseModules[phase].explanation}
+              </Typography>
+              {renderModuleList(phaseModules[phase].modules)}
+            </Paper>
+          </Stack>
+        );
+      }
     }
 
     return null;
@@ -676,6 +827,12 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
           {Object.values(PHASES).map(phase => {
             if (!isPhase(phase)) return null;
             const moduleConfig = phaseModules[phase];
+            const PhaseIcon = {
+              discovery: ScienceIcon,
+              pilot: TimelineIcon,
+              validation: PsychologyIcon
+            }[phase] as React.ComponentType<SvgIconProps>;
+
             return (
               <Paper
                 key={phase}
@@ -695,19 +852,30 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                   setDirectSelections(prev => ({ ...prev, phase }));
                   setState((prev: WizardState): WizardState => ({
                     ...prev,
-                    phase,
+                    phase: phase,
                     estimatedTime: calculateTotalTime({
-                      phase,
-                      dataCollection: prev.dataCollection,
-                      selectedModules: getModulesForSelection(phase, prev.dataCollection)
+                      phase: phase,
+                      dataCollection: directSelections.dataCollection || undefined
                     })
                   }));
+                  // Update completed sections based on current selections
+                  if (directSelections.dataCollection) {
+                    setCompletedSections(['selection_method', 'configure_study']);
+                  }
                 }}
               >
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
-                    {phase} Phase
-                  </Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    {PhaseIcon && <PhaseIcon sx={{ color: directSelections.phase === phase ? 'primary.main' : 'action.active' }} />}
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
+                      {phase} Phase
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {moduleConfig.explanation}
+                    </Typography>
+                  </Box>
                   <Chip
                     size="small"
                     label={`+${moduleConfig.timeEstimate} min`}
@@ -728,6 +896,8 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
           {Object.values(DATA_COLLECTION_TYPES).map(type => {
             if (!isDataCollection(type)) return null;
             const moduleConfig = dataCollectionModules[type];
+            const DataIcon = (type === 'retrospective' ? StorageIcon : NewDataIcon) as React.ComponentType<SvgIconProps>;
+
             return (
               <Paper
                 key={type}
@@ -749,17 +919,28 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                     ...prev,
                     dataCollection: type,
                     estimatedTime: calculateTotalTime({
-                      phase: prev.phase,
-                      dataCollection: type,
-                      selectedModules: getModulesForSelection(prev.phase, type)
+                      phase: directSelections.phase || undefined,
+                      dataCollection: type
                     })
                   }));
+                  // Update completed sections based on current selections
+                  if (directSelections.phase) {
+                    setCompletedSections(['selection_method', 'configure_study']);
+                  }
                 }}
               >
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
-                    {type} Data
-                  </Typography>
+                <Stack direction="row" spacing={2} alignItems="center">
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <DataIcon sx={{ color: directSelections.dataCollection === type ? 'primary.main' : 'action.active' }} />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="subtitle1" sx={{ textTransform: 'capitalize' }}>
+                      {type} Data
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {moduleConfig.explanation}
+                    </Typography>
+                  </Box>
                   <Chip
                     size="small"
                     label={`+${moduleConfig.timeEstimate} min`}
@@ -793,15 +974,125 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
     });
   };
 
-  const renderOptionIcon = (option: WizardStepOption) => {
+  const renderOptionIcon = (option: WizardStepOption, isSelected: boolean) => {
     if (!option.Icon) return null;
     const IconComponent = option.Icon;
-    return <IconComponent />;
+    return <IconComponent sx={{ color: isSelected ? 'primary.main' : 'action.active' }} />;
   };
 
   // Add explicit typing for currentStep
   const getCurrentStep = (): WizardStep | undefined => {
     return wizardSteps[currentStep];
+  };
+
+  // Update handleReset to clear all selections
+  const handleReset = () => {
+    setState({ estimatedTime: 0 });
+    setPath(null);
+    setCurrentStep(0);
+    setCompletedSections([]);
+    setSelectedOption('');
+    setInitialSelection(null);
+    setDirectSelections({
+      phase: null,
+      dataCollection: null
+    });
+    setGuidedSelections({
+      aiReadiness: '',
+      dataPlans: ''
+    });
+    setSections([{
+      id: 'selection_method',
+      title: 'Getting Started',
+      description: 'Choose how to proceed',
+      questions: [],
+      isWizardStep: true,
+      dynamicFields: false
+    }]);
+  };
+
+  // Update section click handler to restore selections and handle navigation
+  const handleSectionClick = (sectionId: string) => {
+    const stepIndex = sections.findIndex(s => s.id === sectionId);
+    
+    const isNextUnfinished = stepIndex === completedSections.length;
+    const canNavigate = completedSections.includes(sectionId) || 
+                       sectionId === sections[currentStep]?.id ||
+                       isNextUnfinished;
+
+    if (canNavigate) {
+      // Update completed sections if we have valid selections
+      if (path === 'direct' && sectionId === 'configure_study') {
+        if (directSelections.phase && directSelections.dataCollection) {
+          setCompletedSections(['selection_method', 'configure_study']);
+        }
+      } else if (path === 'guided') {
+        if (sectionId === 'ai_readiness' && guidedSelections.aiReadiness) {
+          setCompletedSections(['selection_method', 'ai_readiness']);
+        } else if (sectionId === 'data_plans' && guidedSelections.dataPlans) {
+          setCompletedSections(['selection_method', 'ai_readiness', 'data_plans']);
+        }
+      }
+
+      setCurrentStep(stepIndex);
+      
+      // Rest of the selection restoration logic...
+      if (sectionId === 'selection_method') {
+        setSelectedOption(initialSelection || '');
+      } else if (path === 'direct' && sectionId === 'configure_study') {
+        if (directSelections.phase || directSelections.dataCollection) {
+          setState(prev => ({
+            ...prev,
+            phase: directSelections.phase || undefined,
+            dataCollection: directSelections.dataCollection || undefined,
+            estimatedTime: calculateTotalTime({
+              phase: directSelections.phase || undefined,
+              dataCollection: directSelections.dataCollection || undefined
+            })
+          }));
+        }
+      } else if (path === 'guided') {
+        if (sectionId === 'ai_readiness') {
+          setSelectedOption(guidedSelections.aiReadiness);
+          if (guidedSelections.aiReadiness) {
+            const aiReadinessOption = wizardSteps[1].options.find(
+              opt => opt.value === guidedSelections.aiReadiness
+            );
+            if (aiReadinessOption?.leadTo && isPhase(aiReadinessOption.leadTo)) {
+              setState(prev => ({
+                ...prev,
+                phase: aiReadinessOption.leadTo as Phase,
+                estimatedTime: TIME_ESTIMATES.PHASES[aiReadinessOption.leadTo as Phase]
+              }));
+            }
+          }
+        } else if (sectionId === 'data_plans') {
+          setSelectedOption(guidedSelections.dataPlans);
+          if (guidedSelections.dataPlans) {
+            const dataPlansOption = wizardSteps[2].options.find(
+              opt => opt.value === guidedSelections.dataPlans
+            );
+            if (dataPlansOption?.leadTo && isDataCollection(dataPlansOption.leadTo)) {
+              setState(prev => ({
+                ...prev,
+                dataCollection: dataPlansOption.leadTo as DataCollection,
+                estimatedTime: prev.estimatedTime + 
+                  TIME_ESTIMATES.DATA_COLLECTION[dataPlansOption.leadTo as DataCollection]
+              }));
+            }
+          }
+        } else if (sectionId === 'review') {
+          // Always recalculate time when navigating to review
+          setState(prev => ({
+            ...prev,
+            estimatedTime: calculateTotalTime({
+              phase: prev.phase,
+              dataCollection: prev.dataCollection
+            })
+          }));
+        }
+      }
+    }
   };
 
   return (
@@ -858,12 +1149,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
             sections={sections}
             completedSections={completedSections}
             activeSection={currentSectionId}
-            onSectionClick={(sectionId) => {
-              const stepIndex = sections.findIndex(s => s.id === sectionId);
-              if (stepIndex <= currentStep) {
-                setCurrentStep(stepIndex);
-              }
-            }}
+            onSectionClick={handleSectionClick}
             disabledSections={getDisabledSections()}
           />
         </Container>
@@ -916,16 +1202,12 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
               dataCollection={state.dataCollection as DataCollection}
               estimatedTime={state.estimatedTime}
               onConfirm={handleWizardComplete}
-              onReset={() => {
-                setState({ estimatedTime: 0 });
-                setPath(null);
-                setCurrentStep(0);
-              }}
+              onReset={handleReset}
               onBack={() => {
                 if (path === 'direct') {
-                  setCurrentStep(1); // Back to configure_study
+                  setCurrentStep(1);
                 } else {
-                  setCurrentStep(2); // Back to data_plans
+                  setCurrentStep(2);
                 }
               }}
               renderModuleList={renderModuleList}
@@ -973,7 +1255,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                       >
                         <Stack direction="row" spacing={2} alignItems="center">
                           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                            {renderOptionIcon(option)}
+                            {renderOptionIcon(option, selectedOption === option.value)}
                           </Box>
                           <Box sx={{ flex: 1 }}>
                             <Typography 
@@ -1034,7 +1316,7 @@ const AIWizard: React.FC<AIWizardProps> = ({ onComplete, initialState }) => {
                           >
                             <Stack direction="row" spacing={2} alignItems="center">
                               <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                                {renderOptionIcon(option)}
+                                {renderOptionIcon(option, selectedOption === option.value)}
                               </Box>
                               <Box sx={{ flex: 1 }}>
                                 <Typography 

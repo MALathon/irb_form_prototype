@@ -2,15 +2,25 @@ import type { Question } from '../types/form';
 import { STUDY_ROLES } from './studyRoles';
 
 export const moduleQuestions: Record<string, Question[]> = {
-  // Add Getting Started section
-  getting_started: [
+  // Change from getting_started to protocol_information
+  protocol_information: [
+    {
+      id: 'irb_import',
+      type: 'file_upload',
+      label: 'Import Existing IRB',
+      required: false,
+      tooltip: 'Import your main IRB application document',
+      helpText: 'Upload your existing IRB application in PDF format',
+      multiple: false  // Only allow one main IRB
+    },
     {
       id: 'study_title',
       type: 'text',
       label: 'Study Title',
       required: true,
       tooltip: 'Provide a descriptive title for your AI/ML research study',
-      helpText: 'Include key aspects: AI/ML focus, clinical domain, and study type'
+      helpText: 'Include key aspects: AI/ML focus, clinical domain, and study type',
+      tooltipIcon: 'info'  // Change from default question mark to info icon
     },
     {
       id: 'study_summary',
@@ -30,7 +40,11 @@ export const moduleQuestions: Record<string, Question[]> = {
       helpText: 'Add team members and assign their roles',
       options: STUDY_ROLES.map(role => ({
         value: role.id,
-        label: role.label
+        label: role.label,
+        disabled: false,
+        canDelete: role.canDelete,
+        canEdit: role.canEdit,
+        required: role.required
       }))
     },
     {
@@ -235,6 +249,32 @@ User Control
       required: true,
       tooltip: 'Describe training needed for clinical staff',
       multiline: true
+    }
+  ],
+
+  // Add new section for related IRBs
+  related_irbs: [
+    {
+      id: 'related_irb_list',
+      type: 'team_list',  // Reuse the team list component style
+      label: 'Related IRB Applications',
+      required: false,
+      tooltip: 'Add any related or referenced IRB applications',
+      helpText: 'Include IRBs that are relevant to this study',
+      options: [
+        {
+          value: 'referenced',
+          label: 'Referenced IRB',
+          canDelete: true,
+          canEdit: true
+        },
+        {
+          value: 'related',
+          label: 'Related IRB',
+          canDelete: true,
+          canEdit: true
+        }
+      ]
     }
   ]
 }; 

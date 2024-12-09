@@ -27,6 +27,9 @@ export interface SelectOption {
   disabled?: boolean;
   isComingSoon?: boolean;
   default?: boolean;
+  canDelete?: boolean;
+  canEdit?: boolean;
+  required?: boolean;
 }
 
 export type QuestionType = 
@@ -62,6 +65,8 @@ export interface Question {
     questionId: string;
     value: string | string[];
   };
+  multiple?: boolean;
+  tooltipIcon?: 'info' | 'help';
 }
 
 export interface Section {
@@ -70,7 +75,7 @@ export interface Section {
   description: string;
   questions: Question[];
   isWizardStep: boolean;
-  dynamicFields?: boolean;
+  dynamicFields: boolean;
   dependsOn?: SectionDependency;
   isDisabled?: boolean;
 }
@@ -98,12 +103,18 @@ export interface ValidationError {
   type: 'error' | 'warning';
 }
 
+export type ValidationErrors = {
+  [questionId: string]: ValidationError;
+};
+
 export interface FormSectionProps {
   section: Section;
   data: FormData;
   onChange: (id: string, value: any) => void;
-  errors?: Record<string, ValidationError>;
+  errors?: ValidationErrors;
   skippedFields?: string[];
   onHelpClick?: () => void;
   helpIcon?: React.ReactNode;
+  onIRBUpload?: (files: File[]) => void;
+  mainIRB?: File | null;
 }

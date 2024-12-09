@@ -1,4 +1,4 @@
-import { HelpOutline as HelpOutlineIcon, CheckCircle as CheckCircleIcon, Science as ScienceIcon, Timeline as TimelineIcon, Psychology as PsychologyIcon } from '@mui/icons-material';
+import { HelpOutline as HelpOutlineIcon, CheckCircle as CheckCircleIcon, Science as ScienceIcon, Timeline as TimelineIcon, Psychology as PsychologyIcon, Storage as StorageIcon, Addchart as NewDataIcon } from '@mui/icons-material';
 import { PHASES, DATA_COLLECTION_TYPES, TIME_ESTIMATES } from './wizardConfig';
 import type { WizardStep } from '../types/wizard';
 import type { Section } from '../types/form';
@@ -70,6 +70,7 @@ export const wizardSteps: WizardStep[] = [
         value: 'existing',
         leadTo: DATA_COLLECTION_TYPES.retrospective,
         timeImpact: TIME_ESTIMATES.DATA_COLLECTION.retrospective,
+        Icon: StorageIcon
       },
       {
         label: "I need to collect new data",
@@ -77,6 +78,7 @@ export const wizardSteps: WizardStep[] = [
         value: 'new',
         leadTo: DATA_COLLECTION_TYPES.prospective,
         timeImpact: TIME_ESTIMATES.DATA_COLLECTION.prospective,
+        Icon: NewDataIcon
       }
     ]
   }

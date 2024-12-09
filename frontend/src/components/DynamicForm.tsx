@@ -26,6 +26,7 @@ import {
   Delete as DeleteIcon,
   CheckCircle as CheckCircleIcon,
   AccessTime as AccessTimeIcon,
+  Info as InfoIcon,
 } from '@mui/icons-material';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '@mui/material/styles';
@@ -34,7 +35,8 @@ import type {
   DateRange, 
   FormConfig,
   Section,
-  Question
+  Question,
+  ValidationErrors
 } from '../types/form';
 import type {
   WizardState,
@@ -86,12 +88,12 @@ const DynamicForm: React.FC = () => {
     dataCollection: undefined,
     estimatedTime: 0 
   });
-  const [activeSection, setActiveSection] = useState('');
+  const [activeSection, setActiveSection] = useState<string>('ai_wizard');
   const [formData, setFormData] = useState<FormData>({});
   const [completedSections, setCompletedSections] = useState<string[]>([]);
   const [helpOpen, setHelpOpen] = useState(false);
   const [skippedSections, setSkippedSections] = useState<string[]>([]);
-  const [visitedSections, setVisitedSections] = useState<string[]>(['initial_information']);
+  const [visitedSections, setVisitedSections] = useState<string[]>(['ai_wizard']);
   const [isReviewMode, setIsReviewMode] = useState(false);
   const [settingsAnchorEl, setSettingsAnchorEl] = useState<null | HTMLElement>(null);
   const isSettingsOpen = Boolean(settingsAnchorEl);
@@ -199,7 +201,7 @@ const DynamicForm: React.FC = () => {
   };
 
   // Add new state for tracking navigation
-  const [navigationHistory, setNavigationHistory] = useState<string[]>(['initial_information']);
+  const [navigationHistory, setNavigationHistory] = useState<string[]>(['ai_wizard']);
   
   // Add state for navigation warning dialog
   const [navigationWarningOpen, setNavigationWarningOpen] = useState(false);
@@ -284,15 +286,16 @@ const DynamicForm: React.FC = () => {
     setWizardComplete(true);
     setShowWizard(false);
     
-    // Create the initial form configuration with Getting Started and wizard-selected modules
+    // Create the initial form configuration with Protocol Information and wizard-selected modules
     const newConfig: FormConfig = {
       sections: {
-        getting_started: {
-          id: 'getting_started',
-          title: 'Getting Started',
-          description: 'Initial study information',
-          questions: moduleQuestions.getting_started || [], // Use the questions from moduleQuestions
-          isWizardStep: false
+        protocol_information: {
+          id: 'protocol_information',
+          title: 'Protocol Information',
+          description: 'Basic information about your research protocol',
+          questions: moduleQuestions.protocol_information || [],
+          isWizardStep: false,
+          dynamicFields: false
         }
       }
     };
@@ -305,8 +308,9 @@ const DynamicForm: React.FC = () => {
           id: sectionId,
           title: moduleTitle,
           description: `Complete ${moduleTitle} information`,
-          questions: moduleQuestions[sectionId] || [], // Use module-specific questions
-          isWizardStep: false
+          questions: moduleQuestions[sectionId] || [],
+          isWizardStep: false,
+          dynamicFields: false
         };
       });
 
@@ -316,17 +320,19 @@ const DynamicForm: React.FC = () => {
           id: sectionId,
           title: moduleTitle,
           description: `Complete ${moduleTitle} information`,
-          questions: moduleQuestions[sectionId] || [], // Use module-specific questions
-          isWizardStep: false
+          questions: moduleQuestions[sectionId] || [],
+          isWizardStep: false,
+          dynamicFields: false
         };
       });
     }
 
     setCurrentFormConfig(newConfig);
     
-    // Navigate to Getting Started
-    setActiveSection('getting_started');
-    setNavigationHistory(['ai_wizard', 'getting_started']);
+    // Navigate to Protocol Information
+    setActiveSection('protocol_information');
+    setNavigationHistory(['protocol_information']);
+    setVisitedSections(['protocol_information']);
   };
 
   // Add section completion tracking
@@ -531,7 +537,7 @@ const DynamicForm: React.FC = () => {
     return sectionId === 'ai_wizard';
   };
 
-  // Update getBreadcrumbSections to match Section interface from form.ts
+  // Update getBreadcrumbSections to show AI Wizard first
   const getBreadcrumbSections = () => {
     const sections: Record<string, Section> = {
       ai_wizard: {
@@ -542,11 +548,11 @@ const DynamicForm: React.FC = () => {
         isWizardStep: true,
         dynamicFields: false
       },
-      getting_started: {
-        id: 'getting_started',
-        title: 'Getting Started',
-        description: 'Initial study information',
-        questions: moduleQuestions.getting_started || [],
+      protocol_information: {
+        id: 'protocol_information',
+        title: 'Protocol Information',
+        description: 'Basic information about your research protocol',
+        questions: moduleQuestions.protocol_information || [],
         isWizardStep: false,
         dynamicFields: false
       }
@@ -602,27 +608,35 @@ const DynamicForm: React.FC = () => {
     )
     .map(([id]) => id);
 
-  // Add renderFormSection function
-  const renderFormSection = () => {
-    if (!section) {
-      return (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography color="error">
-            Error: Could not find section configuration for "{activeSection}"
-          </Typography>
-        </Box>
-      );
-    }
+  // Add state for main IRB file
+  const [mainIRB, setMainIRB] = useState<File | null>(null);''
 
+  // Add handler for IRB file upload
+  const handleIRBUpload = (files: File[]) => {
+    if (files.length > 0) {
+      setMainIRB(files[0]);  // Only take the first file
+      setFormData(prev => ({
+        ...prev,
+        irb_import: files[0]
+      }));
+    }
+  };
+
+  // Update the form section render to handle IRB upload
+  const renderFormSection = (section: Section) => {
+    const sectionSkippedFields = getSkippedFields(section.id);
+    
     return (
       <FormSection
         section={section}
         data={formData}
         onChange={handleQuestionChange}
-        errors={errors[activeSection] || {}}
-        skippedFields={skippedSections.includes(activeSection) ? getSkippedFields(activeSection) : []}
+        errors={errors as unknown as ValidationErrors}
+        skippedFields={sectionSkippedFields}
         onHelpClick={() => setHelpOpen(true)}
-        helpIcon={<HelpIcon />}
+        helpIcon={<InfoIcon />}
+        onIRBUpload={handleIRBUpload}
+        mainIRB={mainIRB}
       />
     );
   };
@@ -869,7 +883,7 @@ const DynamicForm: React.FC = () => {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.3 }}
               >
-                {renderFormSection()}
+                {renderFormSection(section)}
               </motion.div>
             </AnimatePresence>
 
@@ -1042,8 +1056,8 @@ const DynamicForm: React.FC = () => {
                 setFormData({});
                 setCompletedSections([]);
                 setSkippedSections([]);
-                setVisitedSections(['initial_information']);
-                setActiveSection('initial_information');
+                setVisitedSections(['protocol_information']);
+                setActiveSection('protocol_information');
                 setIsReviewMode(false);
                 setShowLandingPage(true);
                 setShowWizard(false);

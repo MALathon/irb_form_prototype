@@ -1,5 +1,6 @@
 import { PHASES, DATA_COLLECTION_TYPES, TIME_ESTIMATES } from '../config/wizardConfig';
 import type { Question } from './form';
+import type { SvgIconProps } from '@mui/material';
 
 // Types based on constants
 export type Phase = typeof PHASES[keyof typeof PHASES];
@@ -58,7 +59,7 @@ export interface WizardStepOption {
   description: string;
   timeImpact: PhaseTimeEstimate | DataCollectionTimeEstimate | SelectionMethodTimeEstimate;
   value: string;
-  Icon?: React.ComponentType;
+  Icon?: React.ComponentType<SvgIconProps>;
   leadTo?: Phase | DataCollection;
 }
 

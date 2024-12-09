@@ -15,6 +15,7 @@ import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft';
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight';
 import type { SectionHeaderProps } from '../types';
+import { keyframes } from '@mui/system';
 
 // Add a function to check if all items fit
 const shouldShowArrows = (totalItems: number) => {
@@ -110,6 +111,22 @@ const CarouselCounter = ({ direction, count }: { direction: 'left' | 'right', co
   );
 };
 
+// Add keyframes for the pulse animation
+const pulse = keyframes`
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(25, 118, 210, 0.4);
+  }
+  70% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(25, 118, 210, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(25, 118, 210, 0);
+  }
+`;
+
 const SectionHeader: React.FC<SectionHeaderProps> = ({
   sections,
   completedSections,
@@ -177,7 +194,12 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
   };
 
   return (
-    <Box sx={{ mx: 5, position: 'relative' }}>
+    <Box sx={{ 
+      mx: 5, 
+      position: 'relative',
+      py: 2,
+      minHeight: '120px'
+    }}>
       <CarouselCounter direction="left" count={hiddenLeft} />
       <Slider {...sliderSettings}>
         {sections.map((section, index) => {
@@ -188,13 +210,16 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
           const isAIWizard = section.id === 'ai_wizard';
 
           return (
-            <Box key={section.id} sx={{ px: 2 }}>
+            <Box key={section.id} sx={{ 
+              px: 2,
+              py: 1.5
+            }}>
               <Box sx={{ 
                 position: 'relative',
                 '&::before': {
                   content: '""',
                   position: 'absolute',
-                  top: 20,
+                  top: 25,
                   left: '-50%',
                   right: '50%',
                   height: 2,
@@ -231,12 +256,18 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
                         transition: 'all 0.2s',
                         mx: 'auto',
                         mb: 1,
+                        animation: isActive ? `${pulse} 2s infinite` : 'none',
                         '&:hover': {
-                          borderColor: isAIWizard ? 'primary.main' : 
-                                     isDisabled ? 'grey.300' : 
-                                     'primary.main',
-                          transform: isAIWizard ? 'none' : isDisabled ? 'none' : 'scale(1.1)',
-                          bgcolor: isAIWizard ? 'background.paper' : undefined
+                          ...(isActive ? {
+                            transform: 'none',
+                            borderColor: 'primary.main'
+                          } : {
+                            borderColor: isAIWizard ? 'primary.main' : 
+                                       isDisabled ? 'grey.300' : 
+                                       'primary.main',
+                            transform: isAIWizard ? 'none' : isDisabled ? 'none' : 'scale(1.1)',
+                            bgcolor: isAIWizard ? 'background.paper' : undefined
+                          })
                         }
                       }}
                     >

@@ -19,7 +19,8 @@ export const DATA_COLLECTION_TYPES = {
 } as const;
 
 // Core module definitions
-export const PHASE_CORE_MODULES = [
+export const CORE_MODULES = [
+  "Protocol Information",
   "Protocol Documentation",
   "Ethics Review",
   "Safety Assessment",
@@ -53,7 +54,7 @@ export const TIME_ESTIMATES = {
 const discoveryConfig: ModuleConfig = {
   title: "Discovery Phase",
   modules: {
-    core: Array.from(PHASE_CORE_MODULES),
+    core: Array.from(CORE_MODULES),
     additional: []
   },
   explanation: "Focus on initial model development and basic validation.",
@@ -70,7 +71,7 @@ const discoveryConfig: ModuleConfig = {
 const pilotConfig: ModuleConfig = {
   title: "Pilot Phase",
   modules: {
-    core: Array.from(PHASE_CORE_MODULES),
+    core: Array.from(CORE_MODULES),
     additional: [
       "Performance Validation",
       "Error Analysis",
@@ -84,7 +85,7 @@ const pilotConfig: ModuleConfig = {
 const validationConfig: ModuleConfig = {
   title: "Validation Phase",
   modules: {
-    core: Array.from(PHASE_CORE_MODULES),
+    core: Array.from(CORE_MODULES),
     additional: [
       "Performance Validation",
       "Error Analysis",
@@ -146,18 +147,17 @@ export const calculateTotalTime = (state: {
     additional: string[];
   };
 }): number => {
+  // Start with 0 instead
   let totalTime = 0;
 
-  if (state.phase && phaseModules[state.phase]) {
-    totalTime += phaseModules[state.phase].timeEstimate;
+  // Add phase time if exists
+  if (state.phase && TIME_ESTIMATES.PHASES[state.phase]) {
+    totalTime += TIME_ESTIMATES.PHASES[state.phase];
   }
 
-  if (state.dataCollection && dataCollectionModules[state.dataCollection]) {
-    totalTime += dataCollectionModules[state.dataCollection].timeEstimate;
-  }
-
-  if (state.selectedModules) {
-    totalTime += state.selectedModules.additional.length * 10;
+  // Add data collection time if exists
+  if (state.dataCollection && TIME_ESTIMATES.DATA_COLLECTION[state.dataCollection]) {
+    totalTime += TIME_ESTIMATES.DATA_COLLECTION[state.dataCollection];
   }
 
   return totalTime;
@@ -185,20 +185,3 @@ export const getModulesForSelection = (phase?: Phase, dataCollection?: DataColle
     additional: [...selectedPhaseModules.additional, ...selectedDataModules.additional]
   };
 };
-
-// Update wizardStepTimeEstimates to use constants
-export const wizardStepTimeEstimates = {
-  selection_method: {
-    guided: TIME_ESTIMATES.SELECTION_METHOD.guided,
-    direct: TIME_ESTIMATES.SELECTION_METHOD.direct
-  },
-  ai_readiness: {
-    not_started: TIME_ESTIMATES.PHASES.discovery,
-    developed: TIME_ESTIMATES.PHASES.pilot,
-    tested: TIME_ESTIMATES.PHASES.validation
-  },
-  data_plans: {
-    existing: TIME_ESTIMATES.DATA_COLLECTION.retrospective,
-    new: TIME_ESTIMATES.DATA_COLLECTION.prospective
-  }
-} as const; 
